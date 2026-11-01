@@ -39,7 +39,7 @@
         .turno-row select { width: 48%; padding: 6px; font-size: 0.85rem; margin: 0; border-radius: 4px; }
         
         .squadra-card-item { display: flex; justify-content: space-between; align-items: center; background: #fdfefe; border: 1px solid #eaecee; padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; font-size: 0.9rem; }
-        .festivo-badge { background: #e74c3c; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; display: inline-block; margin-bottom: 8px; }
+        .festivo-badge { background: #e67e22; color: white; padding: 4px 10px; border-radius: 4px; font-size: 0.85rem; display: inline-block; margin: 3px 3px 3px 0; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -164,27 +164,26 @@
         <button onclick="aggiungiIncompatibilita()" style="background: #c0392b; margin-top: 12px;">+ Aggiungi Divieto Coppia</button>
     </div>
 
-    <!-- SEZIONE DEDICATA: Festivi del Mese e Assegnazioni Manuali -->
+    <!-- SEZIONE FESTIVI E ASSEGNAZIONE MANUALE (NOTTE O MATTINA) -->
     <div class="box" style="border-left-color: #8e44ad;">
-        <h3 style="color: #8e44ad;">🎉 Festivi del Mese & Assegnazioni Manuali</h3>
-        <p style="font-size: 0.85rem; color: #666; margin-bottom: 8px;">Festività identificate in automatico per il mese selezionato:</p>
-        <div id="infoFestiviMese" style="margin-bottom: 12px;"><span class="festivo-badge">Nessun festivo in questo mese</span></div>
+        <h3 style="color: #8e44ad;">🎉 Festivi Nazionali & Assegnazione Festivi/Prefestivi</h3>
+        <p style="font-size: 0.85rem; color: #666; margin-bottom: 8px;">Festività ufficiali del mese:</p>
+        <div id="infoFestiviMese" style="margin-bottom: 12px;"></div>
         
-        <p style="font-size: 0.85rem; color: #666; margin-bottom: 8px;">Assegna manualmente turni speciali (Ferie, Riposo, Mattina, ecc.) a specifici operatori:</p>
-        <div id="listaAssegnazioniManuali" style="margin-bottom: 12px;">
+        <p style="font-size: 0.85rem; color: #666; margin-bottom: 8px;">Assegna un operatore a un giorno festivo/prefestivo scegliendo se farà <b>Notte</b> o <b>Mattina</b>:</p>
+        <div id="listaFestiviManuali" style="margin-bottom: 12px;">
             <p style='font-size:0.85rem; color:#95a5a6; font-style:italic;'>Nessuna assegnazione manuale inserita.</p>
         </div>
 
         <div style="display: flex; gap: 10px;">
-            <select id="manualeOperatore" style="margin:0;"><option value="">Seleziona operatore...</option></select>
-            <input type="number" id="manualeGiorno" placeholder="Giorno (es. 1)" min="1" max="31" style="margin:0; width: 100px;">
-            <select id="manualeTurno" style="margin:0;">
-                <option value="Ferie">Ferie</option>
-                <option value="Riposo">Riposo</option>
+            <select id="manualeOperatore" style="margin:0; flex: 2;"><option value="">Seleziona operatore...</option></select>
+            <input type="number" id="manualeGiorno" placeholder="Giorno (es. 1)" min="1" max="31" style="margin:0; width: 90px;">
+            <select id="manualeTurnoScelta" style="margin:0; flex: 1;">
+                <option value="Notte">Notte</option>
                 <option value="Mattina">Mattina</option>
             </select>
         </div>
-        <button onclick="aggiungiAssegnazioneManuale()" style="background: #8e44ad; margin-top: 12px;">+ Assegna Turno Manuale</button>
+        <button onclick="aggiungiFestivoManuale()" style="background: #8e44ad; margin-top: 12px;">+ Assegna Turno Festivo/Prefestivo</button>
     </div>
 
     <!-- Pulsanti Azione -->
@@ -199,31 +198,27 @@
         const listaOpzioniTurni = ["Mattina", "Notte", "Riposo", "Sabato Mattina", "Ferie"];
 
         const festiviFissi = {
-            "0-1": "Capodanno (1° Gennaio)",
-            "3-25": "Liberazione (25 Aprile)",
-            "4-1": "Festa del Lavoro (1° Maggio)",
-            "5-2": "Festa della Repubblica (2° Giugno)",
-            "7-15": "Ferragosto (15 Agosto)",
-            "10-1": "Tutti i Santi (1° Novembre)",
-            "11-8": "Immacolata (8 Dicembre)",
-            "11-25": "Natale (25 Dicembre)",
-            "11-26": "Santo Stefano (26 Dicembre)"
+            "0": [{g: 1, nome: "Capodanno (1° Gennaio)"}],
+            "3": [{g: 25, nome: "Liberazione (25 Aprile)"}],
+            "4": [{g: 1, nome: "Festa del Lavoro (1° Maggio)"}],
+            "5": [{g: 2, nome: "Festa della Repubblica (2° Giugno)"}],
+            "7": [{g: 15, nome: "Ferragosto (15 Agosto)"}],
+            "9": [],
+            "10": [{g: 1, nome: "Tutti i Santi (1° Novembre)"}],
+            "11": [
+                {g: 8, nome: "Immacolata (8 Dicembre)"},
+                {g: 25, nome: "Natale (25 Dicembre)"},
+                {g: 26, nome: "Santo Stefano (26 Dicembre)"}
+            ]
         };
 
         function aggiornaFestiviMese() {
             let meseIndex = document.getElementById('meseSelezionato').value;
             let containerFestivi = document.getElementById('infoFestiviMese');
-            let trovati = [];
+            let festiviDelMese = festiviFissi[meseIndex] || [];
 
-            for (let chiave in festiviFissi) {
-                let parti = chiave.split('-');
-                if (parti[0] === meseIndex) {
-                    trovati.push(`<b>${parti[1]}</b>: ${festiviFissi[chiave]}`);
-                }
-            }
-
-            if (trovati.length > 0) {
-                containerFestivi.innerHTML = trovati.map(f => `<span class="festivo-badge" style="background:#e67e22; margin-right:5px;">${f}</span>`).join(' ');
+            if (festiviDelMese.length > 0) {
+                containerFestivi.innerHTML = festiviDelMese.map(f => `<span class="festivo-badge">📅 Giorno ${f.g}: ${f.nome}</span>`).join(' ');
             } else {
                 containerFestivi.innerHTML = `<span class="festivo-badge" style="background:#95a5a6;">Nessuna festività fissa nazionale in questo mese</span>`;
             }
@@ -266,17 +261,20 @@
             return incs;
         }
 
-        function raccogliAssegnazioniManuali() {
-            let items = document.querySelectorAll('#listaAssegnazioniManuali .squadra-card-item');
+        function raccogliFestiviManuali() {
+            let items = document.querySelectorAll('#listaFestiviManuali .squadra-card-item');
             let mans = [];
             items.forEach(item => {
                 let divEl = item.querySelector('div');
                 if (divEl) {
-                    let parti = divEl.textContent.split('-');
+                    let testo = divEl.textContent;
+                    let parti = testo.split('-');
                     if (parti.length >= 2) {
                         let giorno = parseInt(parti[0].replace('Giorno', '').trim());
-                        let sub = parti[1].split(':');
-                        mans.push({ giorno, op: sub[0].trim(), turno: sub[1].trim() });
+                        let sub = parti[1].split('(');
+                        let op = sub[0].trim();
+                        let turno = sub[1].replace(')', '').trim();
+                        mans.push({ giorno, op, turno });
                     }
                 }
             });
@@ -357,19 +355,19 @@
             `;
         }
 
-        function aggiungiAssegnazioneManuale() {
+        function aggiungiFestivoManuale() {
             let op = document.getElementById('manualeOperatore').value;
             let giorno = document.getElementById('manualeGiorno').value;
-            let turno = document.getElementById('manualeTurno').value;
+            let turnoScelto = document.getElementById('manualeTurnoScelta').value;
 
-            if (!op || !giorno) return alert("Seleziona operatore e giorno!");
+            if (!op || !giorno) return alert("Seleziona operatore e inserisci il giorno!");
 
-            let container = document.getElementById('listaAssegnazioniManuali');
+            let container = document.getElementById('listaFestiviManuali');
             if (container.innerHTML.includes('Nessuna assegnazione')) container.innerHTML = "";
 
             container.innerHTML += `
                 <div class="squadra-card-item">
-                    <div>📌 Giorno <strong>${giorno}</strong> - <strong>${op}</strong>: <span style="color:#8e44ad; font-weight:bold;">${turno}</span></div>
+                    <div>📌 Giorno <strong>${giorno}</strong> - <strong>${op}</strong> (${turnoScelto})</div>
                     <button class="btn-danger" style="width: 32px; height: 32px; font-size: 0.8rem;" onclick="this.parentElement.remove()">✕</button>
                 </div>
             `;
@@ -394,7 +392,7 @@
             let dipendenti = raccogliDipendenti();
             let squadre = raccogliSquadre();
             let incompatibilita = raccogliIncompatibilita();
-            let assegnazioniManuali = raccogliAssegnazioniManuali();
+            let festiviManuali = raccogliFestiviManuali();
 
             let selectMese = document.getElementById('meseSelezionato');
             let meseIndex = selectMese.value;
@@ -450,25 +448,24 @@
                 return;
             }
 
-            // 1. APPLICAZIONE ASSEGNAZIONI MANUALI (Ferie, permessi, festivi scelti dall'utente)
-            assegnazioniManuali.forEach(man => {
+            // APPLICAZIONE ASSEGNAZIONI MANUALI (NOTTE O MATTINA) SCELTE DALL'UTENTE
+            festiviManuali.forEach(man => {
                 unitaDiLavoro.forEach(u => {
                     if (u.membri.includes(man.op) || u.id === man.op) {
                         if (man.giorno >= 1 && man.giorno <= giorniTotali) {
                             u.turni[man.giorno] = man.turno;
-                            // Se l'utente imposta una notte manualmente, incrementiamo il contatore notti
                             if (man.turno === "Notte") u.nottiFatte++;
                         }
                     }
                 });
             });
 
-            // 2. MATRICE GLOBALE DEL MESE (Gestione automatica intelligente)
+            // MATRICE GLOBALE DEL MESE
             for (let g = 1; g <= giorniTotali; g++) {
                 let dataG = new Date(anno, meseIndex, g);
                 let dow = dataG.getDay(); // 0=Dom, 6=Sab
 
-                // Smonto notte obbligatorio (se il giorno è vuoto)
+                // Smonto notte obbligatorio
                 if (g > 1) {
                     unitaDiLavoro.forEach(u => {
                         if (u.turni[g - 1] === "Notte" && u.turni[g] === "") {
@@ -477,7 +474,7 @@
                     });
                 }
 
-                // Assegnazione Notti automatiche mancanti (Target 4-6)
+                // Assegnazione Notti automatiche (Target 4-6)
                 let candidatiNotte = [];
                 unitaDiLavoro.forEach((u, idx) => {
                     if (u.nottiFatte < 6 && u.turni[g] === "") {
@@ -500,7 +497,7 @@
                     assegnateOggi++;
                 }
 
-                // 3. Completamento turni e riscontro esatto dei giorni lavorativi feriali
+                // Completamento turni e riscontro esatto dei giorni lavorativi feriali (Target 21)
                 unitaDiLavoro.forEach(u => {
                     if (u.turni[g] === "") {
                         if (dow === 0) {
@@ -515,18 +512,11 @@
                                 u.turni[g] = "Riposo";
                             }
                         }
-                    } 
-                    
-                    // Contiamo come lavorato feriale valido sia la Mattina che la Notte feriale
-                    if (dow !== 0 && dow !== 6) {
-                        if ((u.turni[g] === "Mattina" || u.turni[g] === "Notte") && !u._contatoGiornoFeriale === true) {
-                            // Evitiamo doppi conteggi per lo stesso giorno feriale
-                        }
                     }
                 });
             }
 
-            // Ricalcolo sicuro finale dei giorni feriali lavorati per ogni operatore per garantire i 21 giorni
+            // Ricalcolo sicuro finale dei giorni feriali lavorati effettivi per garantire il target corretto del mese
             unitaDiLavoro.forEach(u => {
                 let ferialiEffettivi = 0;
                 for (let g = 1; g <= giorniTotali; g++) {
@@ -598,4 +588,3 @@
 
 </body>
 </html>
-
