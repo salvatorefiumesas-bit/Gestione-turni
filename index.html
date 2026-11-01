@@ -41,6 +41,14 @@ button:active{transform:none}
 .corsia{border-top:2px dashed #cfd5de;margin:6px 4px 20px}
 #listaDipendentiInput{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:12px}
 .employee-row{display:flex;gap:6px}.employee-row input{margin:0}
+.lock{flex:none;width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:var(--soft);border:1px solid var(--line);font-size:.95rem}
+details.box>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;font-size:1.05rem;font-weight:700}
+details.box>summary::-webkit-details-marker{display:none}
+details.box>summary::before{content:"";flex:none;width:10px;height:10px;border-radius:50%;background:var(--ac)}
+details.box>summary::after{content:"▾";margin-left:auto;color:var(--mut);transition:transform .15s}
+details.box[open]>summary{margin-bottom:14px}
+details.box[open]>summary::after{transform:rotate(180deg)}
+.cnt{padding:2px 10px;border-radius:999px;background:#eef0f3;color:var(--mut);font-size:.8rem;font-weight:650}
 .squadra-card-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 12px;margin-bottom:6px;background:var(--soft);border:1px solid var(--line);border-radius:12px;font-size:.92rem}
 .festivo-badge{display:inline-block;margin:0 6px 6px 0;padding:5px 12px;border-radius:999px;background:#fff3d6;color:#8a5a00;font-weight:650;font-size:.86rem}
 .vuoto{color:var(--mut);margin:0 0 10px;font-size:.92rem}
@@ -85,14 +93,16 @@ select[data-t="Escluso"]{background:#d9dde4;color:#374151}
 
 <section class="box">
   <h3>Mese di riferimento</h3>
-  <div class="row"><select id="meseSelezionato" class="f2" onchange="aggiornaFestiviMese()"></select><select id="annoSelezionato" class="f1" onchange="aggiornaFestiviMese()"></select></div>
+  <div class="row"><select id="giornoSelezionato" class="f1" onchange="aggiornaGiorni()"></select><select id="meseSelezionato" class="f2" onchange="aggiornaFestiviMese()"></select><select id="annoSelezionato" class="f1" onchange="aggiornaFestiviMese()"></select><button onclick="impostaOggi()" title="Torna alla data di oggi" style="padding:0 14px">Oggi</button></div>
+  <p id="dataScelta" class="vuoto" style="margin:0"></p>
 </section>
 
-<section class="box" style="--ac:#475467">
-  <h3>Operatori</h3>
+<details class="box" style="--ac:#475467">
+  <summary>Operatori <span class="cnt" id="contaOperatori"></span></summary>
   <div id="listaDipendentiInput"></div>
   <div class="row"><input type="text" id="nuovoNome" placeholder="Nome e cognome operatore"><button onclick="aggiungiDipendente()">Aggiungi</button></div>
-</section>
+  <p class="vuoto" style="margin:0">Gli operatori con il lucchetto sono fissi e non si possono eliminare; quelli aggiunti qui si possono togliere con la ✕.</p>
+</details>
 
 <section class="box" style="--ac:#17804a">
   <h3>Coppie e squadre fisse</h3>
@@ -248,7 +258,7 @@ function salvaTutto(){
     area.querySelectorAll('select').forEach(s=>{[...s.options].forEach(o=>{if(o.value===s.value)o.setAttribute('selected','');else o.removeAttribute('selected');});});
     let campi={};
     ['sgMin','sgMax','sgNotti','sgDom','sgSab','stMin','stMax','stNotti','stDom','stSab','meseSelezionato','annoSelezionato'].forEach(id=>{campi[id]=document.getElementById(id).value;});
-    localStorage.setItem(CHIAVE_STATO,JSON.stringify({v4:1,dip:raccogliDipendenti(),squadre:squadreData,incomp:incompData,manuali:manualiData,esclusi:esclusiData,staffetta:[...staffetta],campi,area:area.innerHTML,key:area.dataset.key||'',pdf:document.getElementById('btnEsportaPDF').style.display}));
+    localStorage.setItem(CHIAVE_STATO,JSON.stringify({v4:1,dip:raccogliDipendenti(),dipFissi:raccogliFissi(),squadre:squadreData,incomp:incompData,manuali:manualiData,esclusi:esclusiData,staffetta:[...staffetta],campi,area:area.innerHTML,key:area.dataset.key||'',pdf:document.getElementById('btnEsportaPDF').style.display}));
   }catch(e){}
 }
 function programmaSalvataggio(){clearTimeout(_tSalva);_tSalva=setTimeout(salvaTutto,300);}
@@ -257,8 +267,8 @@ function caricaStato(){try{return JSON.parse(localStorage.getItem(CHIAVE_STATO)|
 function init(){
   if(navigator.storage&&navigator.storage.persist)navigator.storage.persist();
   let m=document.getElementById('meseSelezionato'), a=document.getElementById('annoSelezionato');
-  nomiMesi.forEach((n,i)=>m.innerHTML+=`<option value="${i}">${n}</option>`);
-  for(let y=2024;y<=2060;y++)a.innerHTML+=`<option value="${y}">${y}</option>`;
+  nomiMesi.forEach((n,i)=>m.innerHTML+=`<option value="${i}">${n.slice(0,3)}</option>`);
+  for(let y=2024;y<=2060;y++)a.innerHTML+=`<option value="${y}">${String(y).slice(2)}</option>`;
   let oggi=new Date(); m.value=oggi.getMonth(); a.value=Math.min(2060,Math.max(2024,oggi.getFullYear()));
   let st=caricaStato();
   if(st&&!st.v4&&Array.isArray(st.dip)){
@@ -269,10 +279,11 @@ function init(){
     if(i<0)st.dip.push(...tre);else st.dip.splice(i+1,0,...tre);
   }
   if(st){squadreData=st.squadre||[];incompData=st.incomp||[];manualiData=st.manuali||[];esclusiData=st.esclusi||[];if(Array.isArray(st.staffetta))staffetta=new Set(st.staffetta);}
-  (st&&Array.isArray(st.dip)?st.dip:nomiIniziali).forEach(n=>creaRigaDipendente(n));
+  let fissiSet=new Set(st&&Array.isArray(st.dipFissi)?st.dipFissi:nomiIniziali);
+  (st&&Array.isArray(st.dip)?st.dip:nomiIniziali).forEach(n=>creaRigaDipendente(n,fissiSet.has(n)));
   aggiornaSelectsDinamiche();
   if(st&&st.campi)Object.keys(st.campi).forEach(id=>{let e=document.getElementById(id);if(e)e.value=st.campi[id];});
-  aggiornaFestiviMese();disegnaListe();
+  impostaOggi();disegnaListe();
   if(st&&st.area){let ar=document.getElementById('area-pdf');ar.innerHTML=st.area;ar.dataset.key=st.key||'';if(st.pdf)document.getElementById('btnEsportaPDF').style.display=st.pdf;}
   ['input','change','click'].forEach(ev=>document.addEventListener(ev,programmaSalvataggio));
   window.addEventListener('pagehide',salvaTutto);
@@ -282,16 +293,50 @@ function init(){
   document.getElementById('area-pdf').addEventListener('change',()=>{_pronti=null;document.getElementById('btnCondividi').textContent='Condividi i due PDF (WhatsApp…)';});
 }
 
-function creaRigaDipendente(nome){
+function raccogliFissi(){
+  return [...document.querySelectorAll('#listaDipendentiInput .employee-row[data-fisso="1"] input')].map(i=>i.value.trim().toUpperCase()).filter(v=>v);
+}
+function creaRigaDipendente(nome,fisso){
   let row=document.createElement('div'); row.className='employee-row';
   let inp=document.createElement('input'); inp.type='text'; inp.value=nome; inp.onchange=aggiornaSelectsDinamiche;
-  let btn=document.createElement('button'); btn.className='btn-danger'; btn.textContent='✕';
-  btn.onclick=()=>{row.remove();aggiornaSelectsDinamiche();};
-  row.append(inp,btn);
+  row.append(inp);
+  if(fisso){
+    row.dataset.fisso='1';
+    let l=document.createElement('div'); l.className='lock'; l.textContent='🔒'; l.title='Operatore fisso: non si può eliminare';
+    row.append(l);
+  }else{
+    let btn=document.createElement('button'); btn.className='btn-danger'; btn.textContent='✕';
+    btn.onclick=()=>{row.remove();aggiornaSelectsDinamiche();};
+    row.append(btn);
+  }
   document.getElementById('listaDipendentiInput').appendChild(row);
 }
 
+function impostaOggi(){
+  let o=new Date();
+  document.getElementById('meseSelezionato').value=o.getMonth();
+  document.getElementById('annoSelezionato').value=Math.min(2060,Math.max(2024,o.getFullYear()));
+  aggiornaFestiviMese();
+  document.getElementById('giornoSelezionato').value=o.getDate();
+  aggiornaGiorni();
+}
+// Giorni del mese scelto (si adattano a mese e anno) e data per esteso
+function aggiornaGiorni(){
+  let m=Number(document.getElementById('meseSelezionato').value),a=Number(document.getElementById('annoSelezionato').value);
+  let sel=document.getElementById('giornoSelezionato'),v=Number(sel.value)||1,N=getGiorniNelMese(a,m),h='';
+  for(let g=1;g<=N;g++)h+=`<option value="${g}">${g}</option>`;
+  sel.innerHTML=h;sel.value=Math.min(v,N);
+  let d=new Date(a,m,Number(sel.value));
+  document.getElementById('dataScelta').textContent=nomiGiorni[d.getDay()]+' '+d.getDate()+' '+nomiMesi[m]+' '+a;
+}
+// Mese e anno dei turni generati (non quelli scelti ora nei menu): servono per nomi e giorni dei PDF
+function meseArea(){
+  let k=document.getElementById('area-pdf').dataset.key;
+  if(k){let t=k.split('-');return {anno:Number(t[0]),mm:Number(t[1])};}
+  return {anno:Number(document.getElementById('annoSelezionato').value),mm:Number(document.getElementById('meseSelezionato').value)};
+}
 function aggiornaFestiviMese(){
+  aggiornaGiorni();
   let m=Number(document.getElementById('meseSelezionato').value),a=Number(document.getElementById('annoSelezionato').value);
   let f=festiviDelMese(a,m);
   document.getElementById('infoFestiviMese').innerHTML=f.length
@@ -305,6 +350,7 @@ function raccogliDipendenti(){
 
 function aggiornaSelectsDinamiche(){
   let d=raccogliDipendenti();
+  document.getElementById('contaOperatori').textContent=d.length;
   let opts=d.map(n=>`<option value="${n}">${n}</option>`).join('');
   document.getElementById('selezionaMembriSquadra').innerHTML=opts;
   document.getElementById('selezionaEsclusi').innerHTML=opts;
@@ -317,7 +363,7 @@ function aggiornaSelectsDinamiche(){
 function aggiungiDipendente(){
   let i=document.getElementById('nuovoNome'), v=i.value.trim().toUpperCase();
   if(!v)return;
-  creaRigaDipendente(v); i.value=''; aggiornaSelectsDinamiche();
+  creaRigaDipendente(v,false); i.value=''; aggiornaSelectsDinamiche();
 }
 
 function disegnaListe(){
@@ -433,6 +479,7 @@ function assegnaFestiviAuto(anno,mese,sd,squadre,manuali,incomp,carry,need,esc){
   unita.forEach(u=>{u.exN=giorniEsclusi(esc||[],u.membri,'N');});
   manuali.forEach(x=>{if(x.turno!=='Notte')return;let u=unita.find(u=>u.membri.includes(x.op));
     if(u){nn[x.giorno]=nn[x.giorno]||[];if(!nn[x.giorno].includes(u))nn[x.giorno].push(u);}});
+  const rk=new Map();unita.forEach(u=>rk.set(u,Math.random()));
   const sc=u=>Math.max(...u.membri.map(m=>c[m]||0)),ls=u=>Math.max(...u.membri.map(m=>last[m]||0));
   festiviDelMese(anno,mese).forEach(f=>{
     let g=f.g;nn[g]=nn[g]||[];
@@ -450,7 +497,7 @@ function assegnaFestiviAuto(anno,mese,sd,squadre,manuali,incomp,carry,need,esc){
         });
       });
       if(!cand.length)break;
-      const n=sd.membri.length,pos=u=>(sd.membri.indexOf(u.membri[0])+g*5+mese*7)%n;
+      const pos=u=>rk.get(u);
       cand.sort((a,b)=>sc(a)-sc(b)||ls(a)-ls(b)||pos(a)-pos(b));
       let u=cand[0];nn[g].push(u);auto.push({giorno:g,op:u.membri[0],turno:'Notte'});
       u.membri.forEach(m=>{c[m]=(c[m]||0)+1;last[m]=anno*10000+mese*100+g;});
@@ -469,6 +516,9 @@ function getGiorniNelMese(anno,mese){return new Date(anno,Number(mese)+1,0).getD
 function motoreTurni(o){
   const NT=o.notti||6,DOM_MIN=(o.domMin===undefined?2:o.domMin),W=1,WR=1,MINC=3,BON=4,MINL=2;
   const N=getGiorniNelMese(o.anno,o.mese);
+  // generatore casuale: ogni generazione parte da un seme diverso (o.seed fisso solo per le prove)
+  const rnd=(()=>{let a=(o.seed===undefined?(Math.random()*4294967296):o.seed)>>>0;return()=>{a=(a+0x6D2B79F5)|0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};})();
+  const mescola=a=>{for(let i=a.length-1;i>0;i--){let j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
   const dow=g=>new Date(o.anno,o.mese,g).getDay();
   const fer=g=>{let d=dow(g);return d>=1&&d<=5;};
   let target=0;for(let g=1;g<=N;g++)if(fer(g))target++;
@@ -508,7 +558,10 @@ function motoreTurni(o){
     u.S.forEach(g=>{u.turni[g]="Notte";});
     u.S.forEach(g=>{if(g<N&&u.turni[g+1]==="")u.turni[g+1]="Riposo";});
   };
-  unita.forEach((u,ui)=>{
+  // ordine di elaborazione casuale (prima le squadre, poi i singoli)
+  const ordine=mescola(unita.map((u,i)=>u.isSq?i:-1).filter(i=>i>=0)).concat(mescola(unita.map((u,i)=>u.isSq?-1:i).filter(i=>i>=0)));
+  ordine.forEach(ui=>{
+    let u=unita[ui];
     let S=[];for(let g=1;g<=N;g++)if(u.turni[g]==="Notte")S.push(g);
     // Giorni feriali con la sola mattina esclusa: la persona viene messa di notte (se possibile)
     for(let g=1;g<=N&&S.length<NT;g++){
@@ -517,7 +570,7 @@ function motoreTurni(o){
     }
     let fissi=new Set(S);
     const ok=(g,T)=>u.turni[g]===""&&!T.includes(g)&&!T.includes(g-1)&&!T.includes(g+1)&&!confl(u,g);
-    const tie=g=>((g*7+ui*3)%11)/100;
+    const tie=g=>rnd()*0.9;
     const scegli=(T,pool)=>{let best=null,bs=1e9;pool.forEach(g=>{if(!ok(g,T))return;
       let sc=cover[g]+W*(costo(T.concat(g))-costo(T))+tie(g)-(cover[g]<MINC?BON:0);if(sc<bs){bs=sc;best=g;}});return best;};
     const nDom=T=>T.filter(g=>dow(g)===0).length;
@@ -677,7 +730,8 @@ function motoreTurni(o){
       let sab=[];for(let g=1;g<=N;g++)if(u.turni[g]===""&&dow(g)===6&&!u.exM.has(g))sab.push(g);
       let k=u.membri.length;
       sab=sab.filter(g=>satMat[g]+k<=MAXSAB);
-      sab.sort((x,y)=>satMat[x]-satMat[y]||((x*3+ui)%5)-((y*3+ui)%5));
+      let kc={};sab.forEach(g=>{kc[g]=rnd();});
+      sab.sort((x,y)=>satMat[x]-satMat[y]||kc[x]-kc[y]);
       if(sab.length){u.turni[sab[0]]="Sabato Mattina";satMat[sab[0]]+=k;}else senzaSab+=k;
     }
     for(let g=1;g<=N;g++)if(u.turni[g]==="")u.turni[g]="Festa";
@@ -693,7 +747,7 @@ function generaTurniMese(){
   _pronti=null;document.getElementById('btnCondividi').textContent='Condividi i due PDF (WhatsApp…)';
   let dipendenti=raccogliDipendenti();
   let sm=document.getElementById('meseSelezionato');
-  let mese=Number(sm.value),nome=sm.options[sm.selectedIndex].text;
+  let mese=Number(sm.value),nome=nomiMesi[mese];
   let anno=Number(document.getElementById('annoSelezionato').value);
   let area=document.getElementById('area-pdf');
   area.innerHTML=`<h2 class="res-title">Programma Turni Manutenzione Stradale - ${nome} ${anno}</h2>`;
@@ -727,10 +781,19 @@ function generaTurniMese(){
     let inc=incompData.filter(c=>sd.membri.includes(c.op1)&&sd.membri.includes(c.op2));
     let man=manualiData.filter(m=>sd.membri.includes(m.op));
     let auto=assegnaFestiviAuto(anno,mese,sd,sq,man,inc,carry,Math.max(lim[0],2),esc);
-    let r=motoreTurni({anno,mese,dipendenti:sd.membri,
+    const lancia=()=>motoreTurni({anno,mese,dipendenti:sd.membri,
       squadre:sq,incomp:inc,manuali:man.concat(auto),esclusi:esc,
       carry,staffetta:sd.k==='T'?sd.membri:[],
       limiti:{S:sd.k==='S'?lim:[0,99],T:sd.k==='T'?lim:[0,99]},notti:nt,domMin:num(sd.id+'Dom',2),maxSab:num(sd.id+'Sab',999)});
+    // ogni volta una combinazione diversa: provo qualche variante casuale e tengo la migliore
+    const punti=rr=>{let p=rr.senzaSab*5;
+      for(let g=1;g<=rr.N;g++){let c=rr.cov[sd.k][g];if(c>lim[1]||(c<lim[0]&&!(sd.k==='T'&&c===0)))p+=10;}
+      rr.unita.forEach(u=>{let n=0,l=0,as=0;for(let g=1;g<=rr.N;g++){let t=u.turni[g];
+        if(t==="Notte")n++;if(t==="Notte"||t==="Mattina"||t==="Sabato Mattina")l++;
+        if(t==="Escluso"&&dow(g)>=1&&dow(g)<=5)as++;}
+        p+=Math.abs(n-nt)*3+Math.abs(l-(rr.target-as))*2;});return p;};
+    let r=null,migl=1e9;
+    for(let tent=0;tent<4;tent++){let rr=lancia(),pp=punti(rr);if(pp<migl){migl=pp;r=rr;}if(pp===0)break;}
     festiviDelMese(anno,mese).forEach(f=>{let ops=[];r.unita.forEach(u=>{if(u.turni[f.g]==='Notte')ops.push(...u.membri);});
       if(ops.length)(festRec[f.g]=festRec[f.g]||[]).push(...ops);});
     if(r.senzaSab>0)area.insertAdjacentHTML('beforeend',`<p class="msg warn">${sd.nome}: ${r.senzaSab} operatori non hanno trovato posto per il sabato mattina (massimo ${num(sd.id+'Sab',999)} persone a sabato) e hanno un giorno lavorato in meno. Alza il massimo per recuperarli.</p>`);
@@ -781,7 +844,7 @@ function pdfDaCanvas(canvases,nomeFile,orient,comeBlob){
 
 function scaricaPDFTabella(blob){
   let m=document.getElementById('meseSelezionato');
-  let nome=m.options[m.selectedIndex].text,anno=document.getElementById('annoSelezionato').value,mm=Number(m.value);
+  let ma=meseArea(),nome=nomiMesi[ma.mm],anno=ma.anno,mm=ma.mm;
   let cards=[...document.querySelectorAll('#area-pdf .box[data-membri]')];
   if(!cards.length)return;
   let N=new Date(Number(anno),mm+1,0).getDate();
@@ -834,7 +897,7 @@ function scaricaPDFTabella(blob){
 
 function scaricaPDF(blob){
   let m=document.getElementById('meseSelezionato');
-  let nome=m.options[m.selectedIndex].text,anno=document.getElementById('annoSelezionato').value;
+  let ma=meseArea(),nome=nomiMesi[ma.mm],anno=ma.anno;
   let cards=[...document.querySelectorAll('#area-pdf .box')];
   if(!cards.length)return;
   // per ogni sede e giorno, chi è di notte (colonna "In turno con")
@@ -890,7 +953,7 @@ let _pronti=null;
 async function condividiPDF(){
   const b=document.getElementById('btnCondividi'),t0='Condividi i due PDF (WhatsApp…)';
   let m=document.getElementById('meseSelezionato');
-  let nome=m.options[m.selectedIndex].text,anno=document.getElementById('annoSelezionato').value;
+  let ma=meseArea(),nome=nomiMesi[ma.mm],anno=ma.anno;
   try{
     if(!_pronti){
       b.disabled=true;b.textContent='Preparo i PDF…';
