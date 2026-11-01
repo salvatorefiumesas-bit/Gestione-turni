@@ -308,9 +308,7 @@
             if (!container) return;
             container.innerHTML = `<h2 style="text-align:center; color:var(--dark); border-bottom: 2px solid var(--primary); padding-bottom: 10px;">Programma Turni Cantieri - ${nomeMeseTesto} ${anno}</h2>`;
 
-            // Calcolo giorni lavorativi effettivi del mese (Lunedì - Venerdì)
             let giorniTotali = getGiorniNelMese(anno, meseIndex);
-            let giorniLavorativiMese = 0;
             let domeniche = [];
             let sabati = [];
             let ferialiDisponibili = [];
@@ -321,7 +319,6 @@
                 if (dow === 0) domeniche.push(g);
                 else if (dow === 6) sabati.push(g);
                 else {
-                    giorniLavorativiMese++;
                     ferialiDisponibili.push(g);
                 }
             }
@@ -396,7 +393,7 @@
                 let ferialiDispCopia = [...ferialiDisponibili];
                 let nFerialiDaFare = 3;
                 for (let i = 0; i < nFerialiDaFare && ferialiDispCopia.length > 0; i++) {
-                    let pos = (indexD * 4 + i * 7) % ferialiDispCopia.length;
+                    let pos = (indexD * 4 + i * 5) % ferialiDispCopia.length;
                     let giornoScelto = ferialiDispCopia.splice(pos, 1)[0];
                     nottiFerialiAssegnate.add(giornoScelto);
                 }
@@ -433,7 +430,6 @@
                             }
                         } 
                         else {
-                            // Giorni feriali in base al monte giorni lavorativi
                             if (nottiFerialiAssegnate.has(giorno)) {
                                 turnoScelto = "Notte";
                                 eraNotteIeri = true;
