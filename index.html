@@ -123,7 +123,7 @@ select[data-t="Escluso"]{background:#d9dde4;color:#374151}
 
 <section class="box" style="--ac:#0e7490">
   <h3>Esclusioni da giorni e turni</h3>
-  <p class="vuoto">Valgono solo per il mese e l'anno selezionati in alto. Se escludi un membro di una squadra, salta quei turni tutta la squadra.</p>
+  <p class="vuoto">Valgono solo per il mese e l'anno selezionati in alto. Se escludi un membro di una squadra, salta quei turni solo lui: il resto della squadra continua e lui compare in una scheda a parte.</p>
   <div id="listaEsclusioniCreate"><p class="vuoto">Nessuna esclusione impostata.</p></div>
   <label for="selezionaEsclusi">Operatori da escludere (tieni premuto per sceglierne più di uno)</label>
   <select id="selezionaEsclusi" multiple size="6" style="height:auto"></select>
@@ -485,7 +485,8 @@ function assegnaFestiviAuto(anno,mese,sd,squadre,manuali,incomp,carry,need,esc){
   squadre.forEach(s=>s.membri.forEach(m=>imp.add(m)));
   let unita=squadre.map(s=>({membri:s.membri,sq:true}));
   sd.membri.forEach(m=>{if(!imp.has(m))unita.push({membri:[m],sq:false});});
-  unita.forEach(u=>{u.exN=giorniEsclusi(esc||[],u.membri,'N');});
+  // Le squadre non vengono scartate se un loro membro è escluso: l'esclusione vale solo per la persona
+  unita.forEach(u=>{u.exN=u.sq?new Set():giorniEsclusi(esc||[],u.membri,'N');});
   manuali.forEach(x=>{if(x.turno!=='Notte')return;let u=unita.find(u=>u.membri.includes(x.op));
     if(u){nn[x.giorno]=nn[x.giorno]||[];if(!nn[x.giorno].includes(u))nn[x.giorno].push(u);}});
   const rk=new Map();unita.forEach(u=>rk.set(u,Math.random()));
@@ -509,7 +510,7 @@ function assegnaFestiviAuto(anno,mese,sd,squadre,manuali,incomp,carry,need,esc){
       const pos=u=>rk.get(u);
       cand.sort((a,b)=>sc(a)-sc(b)||ls(a)-ls(b)||pos(a)-pos(b));
       let u=cand[0];nn[g].push(u);auto.push({giorno:g,op:u.membri[0],turno:'Notte'});
-      u.membri.forEach(m=>{c[m]=(c[m]||0)+1;last[m]=anno*10000+mese*100+g;});
+      u.membri.forEach(m=>{if(giorniEsclusi(esc||[],[m],'N').has(g))return;c[m]=(c[m]||0)+1;last[m]=anno*10000+mese*100+g;});
     }
   });
   return auto;
@@ -547,7 +548,8 @@ function motoreTurni(o){
     if(u.membri.some(m=>carry.includes(m))&&u.turni[1]===""){u.turni[1]="Riposo";u.carryFlag=true;if(fer(1))u.B=B-1;}
   });
   const escl=o.esclusi||[];
-  unita.forEach(u=>{u.exN=giorniEsclusi(escl,u.membri,'N');u.exM=giorniEsclusi(escl,u.membri,'M');});
+  // Le squadre non ereditano le esclusioni dei singoli membri: vengono applicate solo alla persona a fine calcolo
+  unita.forEach(u=>{u.exN=u.isSq?new Set():giorniEsclusi(escl,u.membri,'N');u.exM=u.isSq?new Set():giorniEsclusi(escl,u.membri,'M');});
   const confl=(u,g)=>{
     if(u.exN.has(g))return true;
     // due squadre diverse non fanno mai la stessa notte
@@ -745,7 +747,33 @@ function motoreTurni(o){
     }
     for(let g=1;g<=N;g++)if(u.turni[g]==="")u.turni[g]="Festa";
   });
-  return {unita,target,N,cov,senzaSab};
+
+  // Esclusioni dei singoli membri di una squadra: la squadra continua, solo la persona esclusa risulta "Escluso"
+  const finali=[];
+  unita.forEach(u=>{
+    finali.push(u);
+    if(!u.isSq)return;
+    let restano=[],extra=[];
+    u.membri.forEach(m=>{
+      let eN=giorniEsclusi(escl,[m],'N'),eM=giorniEsclusi(escl,[m],'M');
+      let t=u.turni.slice(),toccato=false;
+      for(let g=1;g<=N;g++){
+        let x=u.turni[g];
+        if(x==="Notte"&&eN.has(g)){t[g]="Escluso";toccato=true;cov[sedeDi(m)][g]--;}
+        else if((x==="Mattina"||x==="Sabato Mattina")&&eM.has(g)){t[g]="Escluso";toccato=true;}
+        else if(x==="Riposo"&&g>1&&u.turni[g-1]==="Notte"&&eN.has(g-1)){
+          // non ha fatto la notte, quindi niente smonto: nei feriali lavora di mattina (a meno che sia escluso), nel weekend resta Festa
+          t[g]=fer(g)?(eM.has(g)?"Escluso":"Mattina"):"Festa";toccato=true;
+        }
+      }
+      if(toccato)extra.push({titolo:m,membri:[m],turni:t,isSq:false,daSquadra:u.titolo});
+      else restano.push(m);
+    });
+    u.membri=restano;
+    if(!restano.length)finali.splice(finali.indexOf(u),1);
+    extra.forEach(e=>finali.push(e));
+  });
+  return {unita:finali,target,N,cov,senzaSab};
 }
 
 function creaSelectTurno(def){
@@ -797,7 +825,7 @@ function generaTurniMese(){
     // ogni volta una combinazione diversa: provo qualche variante casuale e tengo la migliore
     const punti=rr=>{let p=rr.senzaSab*5;
       for(let g=1;g<=rr.N;g++){let c=rr.cov[sd.k][g];if(c>lim[1]||(c<lim[0]&&!(sd.k==='T'&&c===0)))p+=10;}
-      rr.unita.forEach(u=>{let n=0,l=0,as=0;for(let g=1;g<=rr.N;g++){let t=u.turni[g];
+      rr.unita.forEach(u=>{if(u.daSquadra)return;let n=0,l=0,as=0;for(let g=1;g<=rr.N;g++){let t=u.turni[g];
         if(t==="Notte")n++;if(t==="Notte"||t==="Mattina"||t==="Sabato Mattina")l++;
         if(t==="Escluso"&&dow(g)>=1&&dow(g)<=5)as++;}
         p+=Math.abs(n-nt)*3+Math.abs(l-(rr.target-as))*2;});return p;};
@@ -817,10 +845,11 @@ function generaTurniMese(){
         if(t==="Notte"){n++;if(dow(g)===0)d++;}
         if(t==="Notte"||t==="Mattina"||t==="Sabato Mattina")l++;
         if(t==="Escluso"&&dow(g)>=1&&dow(g)<=5)as++;}
-      let isSq=squadreData.some(s=>s.nome===u.titolo&&s.membri.join()===u.membri.join());
+      let isSq=!!u.isSq;
       let card=document.createElement('div');card.className='box';card.dataset.membri=JSON.stringify(u.membri);card.dataset.sede=sd.nome;
       let html=`<h3>${isSq?'👥 Squadra: ':'👤 Operatore: '}${u.titolo} <span class="stats">Notti: ${n}/${nt} | Dom. notte: ${d} | Giorni lav.: ${l}/${r.target-as}${as?' | Esclusi: '+as:''}</span></h3>`;
       if(isSq)html+=`<p class="membri">Membri: ${u.membri.join(', ')}</p>`;
+      else if(u.daSquadra)html+=`<p class="membri">Della squadra ${u.daSquadra}: esclusa in alcuni giorni, il resto della squadra lavora</p>`;
       for(let g=1;g<=r.N;g++)html+=`<div class="turno-row"><label>${nomiGiorni[dow(g)]} ${g} ${nome} ${anno}:</label>${creaSelectTurno(u.turni[g])}</div>`;
       card.innerHTML=html;area.appendChild(card);
     });
