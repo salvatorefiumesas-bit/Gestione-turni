@@ -392,51 +392,61 @@
                     htmlTurni += `<p style="font-size:0.85rem; color:#7f8c8d; margin-top:0; margin-bottom:10px;">${unita.sottotitolo}</p>`;
                 }
 
-                // 1. Almeno 2 domeniche di notte
-                let domNotteSet = new Set();
+                // RACCOLTA PREVENTIVA ESATTA DELLE 6 NOTTI NEL MESE
+                let giorniNotteFissi = new Set();
+
+                // 1. Due domeniche di notte
                 if (domeniche.length >= 2) {
                     let idx1 = indexD % domeniche.length;
                     let idx2 = (indexD + 2) % domeniche.length;
                     if (idx1 === idx2) idx2 = (idx1 + 1) % domeniche.length;
-                    domNotteSet.add(domeniche[idx1]);
-                    domNotteSet.add(domeniche[idx2]);
+                    giorniNotteFissi.add(domeniche[idx1]);
+                    giorniNotteFissi.add(domeniche[idx2]);
                 } else if (domeniche.length === 1) {
-                    domNotteSet.add(domeniche[0]);
+                    giorniNotteFissi.add(domeniche[0]);
                 }
 
-                // 2. 1 sabato di notte
+                // 2. Un sabato di notte
                 let sabNotte = sabati.length > 0 ? sabati[indexD % sabati.length] : -1;
+                if (sabNotte !== -1) giorniNotteFissi.add(sabNotte);
 
-                // 3. Esattamente 1 sabato mattina
+                // 3. Un sabato mattina (diverso da quello di notte)
                 let sabatMattinaScelto = -1;
-                let sabatiDisponibiliPerMattina = sabati.filter(s => s !== sabNotte);
-                if (sabatiDisponibiliPerMattina.length > 0) {
-                    sabatMattinaScelto = sabatiDisponibiliPerMattina[indexD % sabatiDisponibiliPerMattina.length];
+                let sabatiDispMat = sabati.filter(s => s !== sabNotte);
+                if (sabatiDispMat.length > 0) {
+                    sabatMattinaScelto = sabatiDispMat[indexD % sabatiDispMat.length];
                 } else if (sabati.length > 0) {
                     sabatMattinaScelto = sabati[0];
                 }
 
-                // 4. Garantiamo rigorosamente esattamente 3 notti feriali (totale 6 notti)
-                let nottiFerialiAssegnate = new Set();
+                // 4. Esattamente 3 notti feriali (per arrivare a quota 6 notti totali senza sballare)
                 let ferialiDispCopia = [...ferialiDisponibili];
-                let nFerialiDaFare = 3;
-                let tentativi = 0;
-                while (nottiFerialiAssegnate.size < nFerialiDaFare && ferialiDispCopia.length > 0 && tentativi < 50) {
-                    let pos = (indexD * 7 + tentativi * 3) % ferialiDispCopia.length;
-                    let giornoScelto = ferialiDispCopia[pos];
-                    // Evitiamo notti in giorni adiacenti (per rispettare il riposo obbligatorio e non creare conflitti)
-                    if (!nottiFerialiAssegnate.has(giornoScelto - 1) && !nottiFerialiAssegnate.has(giornoScelto + 1)) {
-                        nottiFerialiAssegnate.add(giornoScelto);
+                let nFerialiAssegnate = 0;
+                let passo = (indexD + 3) % 7 + 1;
+                let tentativo = indexD;
+                
+                while (nFerialiAssegnate < 3 && ferialiDispCopia.length > 0 && tentativo < 100) {
+                    let pos = (tentativo * passo) % ferialiDispCopia.length;
+                    let gFeriale = ferialiDispCopia[pos];
+                    
+                    // Controlliamo che non sia adiacente a un'altra notte già scelta (per evitare conflitti di smonto)
+                    if (!giorniNotteFissi.has(gFeriale - 1) && !giorniNotteFissi.has(gFeriale + 1) && !giorniNotteFissi.has(gFeriale)) {
+                        giorniNotteFissi.add(gFeriale);
+                        nFerialiAssegnate++;
                     }
-                    tentativi++;
+                    tentativo++;
                 }
-                // Se per restrizioni di adiacenza avanzate ne mancano, le piazziate comunque fino a quota 3
-                while (nottiFerialiAssegnate.size < nFerialiDaFare && ferialiDispCopia.length > 0) {
-                    let giornoScelto = ferialiDispCopia.pop();
-                    nottiFerialiAssegnate.add(giornoScelto);
+                // Se per restrizioni severe ne mancano, le piazziamo comunque nei giorni disponibili liberi
+                while (nFerialiAssegnate < 3 && ferialiDispCopia.length > 0) {
+                    let gFeriale = ferialiDispCopia.pop();
+                    if (!giorniNotteFissi.has(gFeriale)) {
+                        giorniNotteFissi.add(gFeriale);
+                        nFerialiAssegnate++;
+                    }
                 }
 
-                let eraNotteIeri = false;
+                // GENERAZIONE GIORNO PER GIORNO CON CONTROLLO RIGOROSO DEL RIPOSO SMONTO
+                let inSmontoNotte = false;
 
                 for (let giorno = 1; giorno <= giorniTotali; giorno++) {
                     let dataCorrente = new Date(anno, meseIndex, giorno);
@@ -444,36 +454,28 @@
                     let nomeGiorno = nomiGiorni[indiceGiornoSettimana];
                     let turnoScelto = "Mattina";
 
-                    if (eraNotteIeri) {
-                        turnoScelto = "Riposo"; // Smonto notte obbligatorio
-                        eraNotteIeri = false; 
+                    // Se ieri era notte, oggi scatta rigorosamente il Riposo (smonto)
+                    if (inSmontoNotte) {
+                        turnoScelto = "Riposo";
+                        inSmontoNotte = false;
+                    } 
+                    else if (giorniNotteFissi.has(giorno)) {
+                        turnoScelto = "Notte";
+                        inSmontoNotte = true; // Attiva lo smonto obbligatorio per il giorno dopo
                     } 
                     else {
                         if (nomeGiorno === "Sabato") {
-                            if (giorno === sabNotte) {
-                                turnoScelto = "Notte";
-                                eraNotteIeri = true;
-                            } else if (giorno === sabatMattinaScelto) {
+                            if (giorno === sabatMattinaScelto) {
                                 turnoScelto = "Sabato Mattina";
                             } else {
                                 turnoScelto = "Riposo";
                             }
                         } 
                         else if (nomeGiorno === "Domenica") {
-                            if (domNotteSet.has(giorno)) {
-                                turnoScelto = "Notte";
-                                eraNotteIeri = true;
-                            } else {
-                                turnoScelto = "Riposo";
-                            }
+                            turnoScelto = "Riposo";
                         } 
                         else {
-                            if (nottiFerialiAssegnate.has(giorno)) {
-                                turnoScelto = "Notte";
-                                eraNotteIeri = true;
-                            } else {
-                                turnoScelto = "Mattina";
-                            }
+                            turnoScelto = "Mattina";
                         }
                     }
 
