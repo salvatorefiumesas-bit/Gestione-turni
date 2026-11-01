@@ -164,7 +164,7 @@
         <button onclick="aggiungiIncompatibilita()" style="background: #c0392b; margin-top: 12px;">+ Aggiungi Divieto Coppia</button>
     </div>
 
-    <!-- SEZIONE FESTIVI E ASSEGNAZIONE MANUALE (NOTTE O MATTINA) -->
+    <!-- SEZIONE FESTIVI E ASSEGNAZIONE MANUALE -->
     <div class="box" style="border-left-color: #8e44ad;">
         <h3 style="color: #8e44ad;">🎉 Festivi Nazionali & Assegnazione Festivi/Prefestivi</h3>
         <p style="font-size: 0.85rem; color: #666; margin-bottom: 8px;">Festività ufficiali del mese:</p>
@@ -425,6 +425,7 @@
                     membri: sq.membri,
                     nottiFatte: 0,
                     giorniLavoratiFeriali: 0,
+                    sabatiMattinaFatti: 0,
                     turni: Array(giorniTotali + 1).fill("")
                 });
             });
@@ -438,6 +439,7 @@
                         membri: [d],
                         nottiFatte: 0,
                         giorniLavoratiFeriali: 0,
+                        sabatiMattinaFatti: 0,
                         turni: Array(giorniTotali + 1).fill("")
                     });
                 }
@@ -448,7 +450,7 @@
                 return;
             }
 
-            // APPLICAZIONE ASSEGNAZIONI MANUALI (NOTTE O MATTINA) SCELTE DALL'UTENTE
+            // 1. APPLICAZIONE ASSEGNAZIONI MANUALI (Notte o Mattina)
             festiviManuali.forEach(man => {
                 unitaDiLavoro.forEach(u => {
                     if (u.membri.includes(man.op) || u.id === man.op) {
@@ -460,7 +462,7 @@
                 });
             });
 
-            // MATRICE GLOBALE DEL MESE
+            // 2. MATRICE GLOBALE DEL MESE
             for (let g = 1; g <= giorniTotali; g++) {
                 let dataG = new Date(anno, meseIndex, g);
                 let dow = dataG.getDay(); // 0=Dom, 6=Sab
@@ -497,14 +499,21 @@
                     assegnateOggi++;
                 }
 
-                // Completamento turni e riscontro esatto dei giorni lavorativi feriali (Target 21)
+                // Assegnazione turni standard (Gestione rigida di un SOLO Sabato Mattina al mese per operatore)
                 unitaDiLavoro.forEach(u => {
                     if (u.turni[g] === "") {
                         if (dow === 0) {
                             u.turni[g] = "Riposo";
                         } else if (dow === 6) {
-                            u.turni[g] = (g % 2 === 0) ? "Sabato Mattina" : "Riposo";
+                            // Se non ha ancora fatto il sabato mattina in questo mese, glielo diamo (a rotazione), altrimenti riposo
+                            if (u.sabatiMattinaFatti === 0 && (g % unitaDiLavoro.length === 0 || g <= 15)) {
+                                u.turni[g] = "Sabato Mattina";
+                                u.sabatiMattinaFatti++;
+                            } else {
+                                u.turni[g] = "Riposo";
+                            }
                         } else {
+                            // Giorni feriali (Lunedì - Venerdì): raggiungiamo esattamente il target dei 21 giorni
                             if (u.giorniLavoratiFeriali < giorniLavorativiFerialiTotali) {
                                 u.turni[g] = "Mattina";
                                 u.giorniLavoratiFeriali++;
@@ -516,7 +525,7 @@
                 });
             }
 
-            // Ricalcolo sicuro finale dei giorni feriali lavorati effettivi per garantire il target corretto del mese
+            // 3. Ricalcolo di riscontro finale per garantire l'esattezza dei giorni lavorativi feriali
             unitaDiLavoro.forEach(u => {
                 let ferialiEffettivi = 0;
                 for (let g = 1; g <= giorniTotali; g++) {
