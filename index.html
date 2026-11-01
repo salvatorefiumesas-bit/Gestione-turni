@@ -170,12 +170,15 @@
             let items = document.querySelectorAll('#listaSquadreCreate .squadra-card-item');
             let sqs = [];
             items.forEach(item => {
-                let testo = item.querySelector('div').textContent;
-                let parti = testo.split(':');
-                if (parti.length >= 2) {
-                    let nome = parti[0].trim();
-                    let membri = parti[1].split(',').map(m => m.trim()).filter(m => m !== "");
-                    sqs.push({ nome, membri });
+                let divEl = item.querySelector('div');
+                if (divEl) {
+                    let testo = divEl.textContent;
+                    let parti = testo.split(':');
+                    if (parti.length >= 2) {
+                        let nome = parti[0].trim();
+                        let membri = parti[1].split(',').map(m => m.trim()).filter(m => m !== "");
+                        sqs.push({ nome, membri });
+                    }
                 }
             });
             return sqs;
@@ -185,11 +188,14 @@
             let items = document.querySelectorAll('#listaIncompatibilitaCreate .squadra-card-item');
             let incs = [];
             items.forEach(item => {
-                let testo = item.querySelector('div').textContent;
-                let pulito = testo.replace('❌', '').trim();
-                let parti = pulito.split('NON con');
-                if (parti.length === 2) {
-                    incs.push({ op1: parti[0].trim(), op2: parti[1].trim() });
+                let divEl = item.querySelector('div');
+                if (divEl) {
+                    let testo = divEl.textContent;
+                    let pulito = testo.replace('❌', '').trim();
+                    let parti = pulito.split('NON con');
+                    if (parti.length === 2) {
+                        incs.push({ op1: parti[0].trim(), op2: parti[1].trim() });
+                    }
                 }
             });
             return incs;
@@ -198,12 +204,13 @@
         function aggiornaSelectsDinamiche() {
             let dipendenti = raccogliDipendenti();
             let selectMembri = document.getElementById('selezionaMembriSquadra');
+            if (!selectMembri) return;
             selectMembri.innerHTML = "";
 
             let selIncomp1 = document.getElementById('operatoreIncompatibile1');
             let selIncomp2 = document.getElementById('operatoreIncompatibile2');
-            selIncomp1.innerHTML = `<option value="">Seleziona operatore 1...</option>`;
-            selIncomp2.innerHTML = `<option value="">Seleziona operatore 2...</option>`;
+            if (selIncomp1) selIncomp1.innerHTML = `<option value="">Seleziona operatore 1...</option>`;
+            if (selIncomp2) selIncomp2.innerHTML = `<option value="">Seleziona operatore 2...</option>`;
 
             dipendenti.forEach(nome => {
                 let opt1 = document.createElement('option');
@@ -211,13 +218,14 @@
                 opt1.textContent = nome;
                 selectMembri.appendChild(opt1);
 
-                selIncomp1.innerHTML += `<option value="${nome}">${nome}</option>`;
-                selIncomp2.innerHTML += `<option value="${nome}">${nome}</option>`;
+                if (selIncomp1) selIncomp1.innerHTML += `<option value="${nome}">${nome}</option>`;
+                if (selIncomp2) selIncomp2.innerHTML += `<option value="${nome}">${nome}</option>`;
             });
         }
 
         function aggiungiDipendente() {
             let input = document.getElementById('nuovoNome');
+            if (!input) return;
             let val = input.value.trim();
             if (val !== "") {
                 let container = document.getElementById('listaDipendentiInput');
@@ -233,6 +241,7 @@
         function aggiungiSquadra() {
             let inputNome = document.getElementById('nomeSquadra');
             let selectMembri = document.getElementById('selezionaMembriSquadra');
+            if (!inputNome || !selectMembri) return;
             let membriSelezionati = Array.from(selectMembri.selectedOptions).map(opt => opt.value);
 
             if (inputNome.value.trim() === "") return alert("Inserisci un nome per la squadra!");
@@ -322,7 +331,8 @@
 
             if (unitaDiLavoro.length === 0) {
                 container.innerHTML += "<p style='color:red; text-align:center;'>Aggiungi almeno un operatore o una squadra!</p>";
-                document.getElementById('btnEsportaPDF').style.display = 'none';
+                let btnPdf = document.getElementById('btnEsportaPDF');
+                if (btnPdf) btnPdf.style.display = 'none';
                 return;
             }
 
@@ -336,10 +346,4 @@
                 if (d.getDay() === 6) sabati.push(g);
             }
 
-            unitaDiLavoro.forEach((unita, indexD) => {
-                let card = document.createElement('div');
-                card.className = 'box';
-                let htmlTurni = `<h3 style="color:#d35400; border-bottom:1px solid #eee; padding-bottom:6px;">${unita.titolo}</h3>`;
-                if (unita.sottotitolo) {
-                    htmlTurni += `<p style="font-size:0.85rem; color:#7f8c8d; margin-top:0; margin-bottom:10px;">${unita.sottotitolo}</p>`;
-              
+            unitaDiLavoro.fo
