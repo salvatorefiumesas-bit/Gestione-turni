@@ -385,12 +385,12 @@
                 return;
             }
 
-            // MATRICE GLOBALE DEL MESE CON BILANCIAMENTO LAVORATIVI
+            // MATRICE GLOBALE: Ottimizzata per preservare i giorni feriali utili
             for (let g = 1; g <= giorniTotali; g++) {
                 let dataG = new Date(anno, meseIndex, g);
                 let dow = dataG.getDay(); // 0=Dom, 6=Sab
 
-                // 1. Smonto notte obbligatorio per chi ha fatto notte il giorno prima
+                // 1. Smonto notte obbligatorio per chi ha fatto notte in g-1
                 if (g > 1) {
                     unitaDiLavoro.forEach(u => {
                         if (u.turni[g - 1] === "Notte") {
@@ -400,6 +400,7 @@
                 }
 
                 // 2. Assegnazione Notti del giorno (Target 4-6 dipendenti, esattamente 6 notti mensili a testa)
+                // Privilegiamo chi ha meno notti e favoriamo le notti di Venerdì/Sabato/Domenica per proteggere i feriali
                 let candidatiNotte = [];
                 unitaDiLavoro.forEach((u, idx) => {
                     if (u.nottiFatte < 6 && u.turni[g] !== "Riposo") {
@@ -422,19 +423,15 @@
                     assegnateOggi++;
                 }
 
-                // 3. Gestione turni non-notte per coprire esattamente i giorni lavorativi feriali del mese
+                // 3. Assegnazione dei turni diurni e bilanciamento rigoroso dei giorni feriali lavorati (21 per Novembre)
                 unitaDiLavoro.forEach(u => {
                     if (u.turni[g] !== "Notte" && u.turni[g] !== "Riposo") {
                         if (dow === 0) {
-                            u.turni[g] = "Riposo"; // Domenica riposo
+                            u.turni[g] = "Riposo"; // Domenica riposo standard
                         } else if (dow === 6) {
                             u.turni[g] = (g % 2 === 0) ? "Sabato Mattina" : "Riposo"; // 1 Sabato mattina al mese
                         } else {
                             // Giorno feriale (Lunedì - Venerdì)
-                            // Se la notte è caduta in un giorno feriale, il giorno di smonto (riposo) consuma un giorno feriale.
-                            // Perciò contiamo come lavorato feriale sia la "Mattina" che la "Notte" feriale.
-                            let eNotteFerialeOggi = (u.turni[g] === "Notte");
-                            
                             if (u.giorniLavoratiFeriali < giorniLavorativiFerialiTotali) {
                                 u.turni[g] = "Mattina";
                                 u.giorniLavoratiFeriali++;
@@ -442,19 +439,16 @@
                                 u.turni[g] = "Riposo";
                             }
                         }
-                    } else if (u.turni[g] === "Notte") {
-                        // Se fa notte di giorno feriale, conta come giorno lavorativo feriale coperto
-                        if (dow !== 0 && dow !== 6) {
-                            // Verifichiamo di non superare il monte totale
-                            if (u.giorniLavoratiFeriali < giorniLavorativiFerialiTotali) {
-                                u.giorniLavoratiFeriali++;
-                            }
+                    } else if (u.turni[g] === "Notte" && dow !== 0 && dow !== 6) {
+                        // Se fa Notte in giorno feriale, quella notte vale come presenza feriale attiva
+                        if (u.giorniLavoratiFeriali < giorniLavorativiFerialiTotali) {
+                            u.giorniLavoratiFeriali++;
                         }
                     }
                 });
             }
 
-            // Renderizzazione grafica finale
+            // Renderizzazione grafica finale dei risultati
             unitaDiLavoro.forEach((unita) => {
                 let card = document.createElement('div');
                 card.className = 'box';
