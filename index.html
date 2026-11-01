@@ -155,8 +155,6 @@
 
     <script>
         const nomiGiorni = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
-        
-        // Solo 3 opzioni pulite e lineari come richiesto
         const listaOpzioniTurni = ["Mattina", "Notte", "Riposo"];
 
         function raccogliDipendenti() {
@@ -330,8 +328,15 @@
 
             let giorniTotali = getGiorniNelMese(anno, meseIndex);
 
-            // Pre-calcoliamo quali sabati e domeniche assegnare come notte per ogni unità
-            // per garantire esattamente 1 sabato notte e 2 domeniche notte nel mese.
+            // Trova tutte le domeniche e i sabati del mese
+            let domeniche = [];
+            let sabati = [];
+            for (let g = 1; g <= giorniTotali; g++) {
+                let d = new Date(anno, meseIndex, g);
+                if (d.getDay() === 0) domeniche.push(g);
+                if (d.getDay() === 6) sabati.push(g);
+            }
+
             unitaDiLavoro.forEach((unita, indexD) => {
                 let card = document.createElement('div');
                 card.className = 'box';
@@ -340,62 +345,70 @@
                     htmlTurni += `<p style="font-size:0.85rem; color:#7f8c8d; margin-top:0; margin-bottom:10px;">${unita.sottotitolo}</p>`;
                 }
 
-                // Trova tutte le domeniche e i sabati del mese
-                let domeniche = [];
-                let sabati = [];
-                for (let g = 1; g <= giorniTotali; g++) {
-                    let d = new Date(anno, meseIndex, g);
-                    if (d.getDay() === 0) domeniche.push(g);
-                    if (d.getDay() === 6) sabati.push(g);
+                // Assegnazione fissa e garantita di almeno 2 domeniche di notte
+                let domNotteSet = new Set();
+                if (domeniche.length >= 2) {
+                    let idx1 = indexD % domeniche.length;
+                    let idx2 = (indexD + 2) % domeniche.length;
+                    if (idx1 === idx2) idx2 = (idx1 + 1) % domeniche.length;
+                    domNotteSet.add(domeniche[idx1]);
+                    domNotteSet.add(domeniche[idx2]);
+                } else if (domeniche.length === 1) {
+                    domNotteSet.add(domeniche[0]);
                 }
 
-                // Seleziona 2 domeniche di notte in modo distribuito per questa unità
-                let domNotte1 = domeniche[indexD % domeniche.length];
-                let domNotte2 = domeniche[(indexD + 2) % domeniche.length];
-                if (domNotte1 === domNotte2 && domeniche.length > 1) {
-                    domNotte2 = domeniche[(indexD + 1) % domeniche.length];
-                }
+                // Assegnazione fissa e garantita di 1 sabato notte
+                let sabNotte = sabati.length > 0 ? sabati[indexD % sabati.length] : -1;
 
-                // Seleziona 1 sabato di notte per questa unità
-                let sabNotte = sabati[indexD % sabati.length];
+                let eraNotteIeri = false; // Memoria per impedire le notti consecutive
 
                 for (let giorno = 1; giorno <= giorniTotali; giorno++) {
                     let dataCorrente = new Date(anno, meseIndex, giorno);
                     let indiceGiornoSettimana = dataCorrente.getDay();
                     let nomeGiorno = nomiGiorni[indiceGiornoSettimana];
-                    let turnoScelto = "Mattina"; // Default pulito
+                    let turnoScelto = "Mattina";
 
-                    if (nomeGiorno === "Sabato") {
-                        if (giorno === sabNotte) {
-                            turnoScelto = "Notte";
-                        } else if (giorno % 2 === (indexD % 2)) {
-                            turnoScelto = "Riposo";
-                        } else {
-                            turnoScelto = "Mattina";
-                        }
-                    } 
-                    else if (nomeGiorno === "Domenica") {
-                        if (giorno === domNotte1 || giorno === domNotte2) {
-                            turnoScelto = "Notte";
-                        } else {
-                            turnoScelto = "Riposo";
-                        }
+                    // REGINA DELLE REGOLE: Se ieri era notte, oggi DEVE essere riposo (mai 2 notti consecutive)
+                    if (eraNotteIeri) {
+                        turnoScelto = "Riposo";
+                        eraNotteIeri = false; // Reset dopo il riposo obbligatorio
                     } 
                     else {
-                        // Giorni feriali: alternanza regolare tra Mattina e Riposo, con qualche Notte programmata
-                        let eNotteFeriale = ((giorno + indexD * 2) % 6 === 0);
-                        let eRiposoFeriale = ((giorno + indexD) % 4 === 0);
+                        if (nomeGiorno === "Sabato") {
+                            if (giorno === sabNotte) {
+                                turnoScelto = "Notte";
+                                eraNotteIeri = true;
+                            } else if (giorno % 2 === (indexD % 2)) {
+                                turnoScelto = "Riposo";
+                            } else {
+                                turnoScelto = "Mattina";
+                            }
+                        } 
+                        else if (nomeGiorno === "Domenica") {
+                            if (domNotteSet.has(giorno)) {
+                                turnoScelto = "Notte";
+                                eraNotteIeri = true;
+                            } else {
+                                turnoScelto = "Riposo";
+                            }
+                        } 
+                        else {
+                            // Giorni feriali: alternanza pulita con turni di notte distanziati
+                            let eNotteFeriale = ((giorno + indexD * 3) % 7 === 0);
+                            let eRiposoFeriale = ((giorno + indexD) % 4 === 0);
 
-                        if (eNotteFeriale) {
-                            turnoScelto = "Notte";
-                        } else if (eRiposoFeriale) {
-                            turnoScelto = "Riposo";
-                        } else {
-                            turnoScelto = "Mattina";
+                            if (eNotteFeriale) {
+                                turnoScelto = "Notte";
+                                eraNotteIeri = true;
+                            } else if (eRiposoFeriale) {
+                                turnoScelto = "Riposo";
+                            } else {
+                                turnoScelto = "Mattina";
+                            }
                         }
                     }
 
-                    // Applicazione regola di sicurezza Incompatibilità
+                    // Controllo rigoroso incompatibilità coppie
                     incompatibilita.forEach(inc => {
                         let unitaContiene1 = unita.membri.includes(inc.op1);
                         let unitaContiene2 = unita.membri.includes(inc.op2);
