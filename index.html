@@ -340,7 +340,14 @@
 
             let giorniTotali = getGiorniNelMese(anno, meseIndex);
 
-            // Costruiamo le unità di lavoro (squadre + singoli)
+            // Calcolo dinamico dei giorni lavorativi feriali (Lunedì - Venerdì) in base al mese e all'anno esatti
+            let giorniLavorativiFerialiTotali = 0;
+            for (let g = 1; g <= giorniTotali; g++) {
+                let d = new Date(anno, meseIndex, g);
+                let dow = d.getDay();
+                if (dow !== 0 && dow !== 6) giorniLavorativiFerialiTotali++;
+            }
+
             let unitaDiLavoro = [];
             let membriImpegnati = new Set();
             
@@ -352,6 +359,7 @@
                     sottotitolo: `Membri: ${sq.membri.join(', ')}`,
                     membri: sq.membri,
                     nottiFatte: 0,
+                    giorniLavoratiFeriali: 0,
                     turni: Array(giorniTotali + 1).fill("Mattina")
                 });
             });
@@ -364,6 +372,7 @@
                         sottotitolo: ``,
                         membri: [d],
                         nottiFatte: 0,
+                        giorniLavoratiFeriali: 0,
                         turni: Array(giorniTotali + 1).fill("Mattina")
                     });
                 }
@@ -376,12 +385,12 @@
                 return;
             }
 
-            // MATRICE GLOBALE: Assegnazione coordinata giorno per giorno per garantire 4-6 notti per notte e 6 notti totali a tutti
+            // MATRICE GLOBALE DEL MESE
             for (let g = 1; g <= giorniTotali; g++) {
                 let dataG = new Date(anno, meseIndex, g);
                 let dow = dataG.getDay(); // 0=Dom, 6=Sab
 
-                // 1. Blocco di smonto notte obbligatorio per chi ha fatto notte in g-1
+                // 1. Smonto notte obbligatorio per chi ha fatto notte il giorno prima
                 if (g > 1) {
                     unitaDiLavoro.forEach(u => {
                         if (u.turni[g - 1] === "Notte") {
@@ -390,28 +399,21 @@
                     });
                 }
 
-                // 2. Selezioniamo chi può fare notte oggi (chi ha < 6 notti e non è in smonto)
+                // 2. Assegnazione Notti del giorno (Target 4-6 dipendenti, esattamente 6 notti mensili a testa)
                 let candidatiNotte = [];
                 unitaDiLavoro.forEach((u, idx) => {
                     if (u.nottiFatte < 6 && u.turni[g] !== "Riposo") {
-                        // Verifichiamo incompatibilità di gruppo
                         let okIncompat = true;
                         incompatibilita.forEach(inc => {
                             if (u.membri.includes(inc.op1) && u.membri.includes(inc.op2)) okIncompat = false;
                         });
-                        if (okIncompat) {
-                            candidatiNotte.push(idx);
-                        }
+                        if (okIncompat) candidatiNotte.push(idx);
                     }
                 });
 
-                // Mischiamo in modo equo basato sul giorno
                 candidatiNotte.sort((a, b) => unitaDiLavoro[a].nottiFatte - unitaDiLavoro[b].nottiFatte || (a + g) % 2 - 0.5);
-
-                // Quante notti servono oggi? (Target 4 a 6, compatibilmente con chi ne ha bisogno)
                 let numNottiOggi = Math.min(6, Math.max(4, Math.min(candidatiNotte.length, unitaDiLavoro.filter(u => u.nottiFatte < 6).length)));
                 
-                // Se siamo a fine mese e qualcuno è rimasto indietro con le 6 notti, forziamo
                 let assegnateOggi = 0;
                 for (let i = 0; i < candidatiNotte.length && assegnateOggi < numNottiOggi; i++) {
                     let idxUnita = candidatiNotte[i];
@@ -420,26 +422,30 @@
                     assegnateOggi++;
                 }
 
-                // 3. Gestione degli altri turni (Mattina, Riposo, Sabato Mattina) per chi non fa notte
+                // 3. Gestione turni non-notte per coprire esattamente i giorni lavorativi feriali del mese
                 unitaDiLavoro.forEach(u => {
                     if (u.turni[g] !== "Notte" && u.turni[g] !== "Riposo") {
                         if (dow === 0) {
-                            u.turni[g] = "Riposo"; // Domenica riposo standard se non di notte
+                            u.turni[g] = "Riposo"; // Domenica riposo
                         } else if (dow === 6) {
-                            // Sabato: un sabato mattina o riposo
-                            u.turni[g] = (g % 2 === 0) ? "Sabato Mattina" : "Riposo";
+                            u.turni[g] = (g % 2 === 0) ? "Sabato Mattina" : "Riposo"; // 1 Sabato mattina al mese
                         } else {
-                            u.turni[g] = "Mattina";
+                            if (u.giorniLavoratiFeriali < giorniLavorativiFerialiTotali) {
+                                u.turni[g] = "Mattina";
+                                u.giorniLavoratiFeriali++;
+                            } else {
+                                u.turni[g] = "Riposo";
+                            }
                         }
                     }
                 });
             }
 
-            // Renderizzazione grafica finale dei risultati
+            // Renderizzazione grafica finale
             unitaDiLavoro.forEach((unita) => {
                 let card = document.createElement('div');
                 card.className = 'box';
-                let htmlTurni = `<h3 style="color:#d35400; border-bottom:1px solid #eee; padding-bottom:6px;">${unita.titolo} <span style="font-size:0.8rem; color:#27ae60; float:right;">Notti: ${unita.nottiFatte}/6</span></h3>`;
+                let htmlTurni = `<h3 style="color:#d35400; border-bottom:1px solid #eee; padding-bottom:6px;">${unita.titolo} <span style="font-size:0.8rem; color:#27ae60; float:right;">Notti: ${unita.nottiFatte}/6 | Lav. Feriali: ${unita.giorniLavoratiFeriali}/${giorniLavorativiFerialiTotali}</span></h3>`;
                 if (unita.sottotitolo) {
                     htmlTurni += `<p style="font-size:0.85rem; color:#7f8c8d; margin-top:0; margin-bottom:10px;">${unita.sottotitolo}</p>`;
                 }
