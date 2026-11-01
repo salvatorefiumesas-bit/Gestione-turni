@@ -339,40 +339,32 @@
             container.innerHTML = `<h2 style="text-align:center; color:var(--dark); border-bottom: 2px solid var(--primary); padding-bottom: 10px;">Programma Turni Cantieri - ${nomeMeseTesto} ${anno}</h2>`;
 
             let giorniTotali = getGiorniNelMese(anno, meseIndex);
-            let domeniche = [];
-            let sabati = [];
-            let ferialiDisponibili = [];
 
-            for (let g = 1; g <= giorniTotali; g++) {
-                let d = new Date(anno, meseIndex, g);
-                let dow = d.getDay();
-                if (dow === 0) domeniche.push(g);
-                else if (dow === 6) sabati.push(g);
-                else ferialiDisponibili.push(g);
-            }
-
+            // Costruiamo le unità di lavoro (squadre + singoli)
             let unitaDiLavoro = [];
+            let membriImpegnati = new Set();
             
             squadre.forEach(sq => {
+                sq.membri.forEach(m => membriImpegnati.add(m));
                 unitaDiLavoro.push({
-                    tipo: 'squadra',
+                    id: sq.nome,
                     titolo: `👥 Squadra: ${sq.nome}`,
                     sottotitolo: `Membri: ${sq.membri.join(', ')}`,
-                    membri: sq.membri
+                    membri: sq.membri,
+                    nottiFatte: 0,
+                    turni: Array(giorniTotali + 1).fill("Mattina")
                 });
             });
 
             dipendenti.forEach(d => {
-                let inSq = false;
-                squadre.forEach(sq => {
-                    if (sq.membri.includes(d)) inSq = true;
-                });
-                if (!inSq) {
+                if (!membriImpegnati.has(d)) {
                     unitaDiLavoro.push({
-                        tipo: 'singolo',
+                        id: d,
                         titolo: `👤 Operatore: ${d}`,
                         sottotitolo: ``,
-                        membri: [d]
+                        membri: [d],
+                        nottiFatte: 0,
+                        turni: Array(giorniTotali + 1).fill("Mattina")
                     });
                 }
             });
@@ -384,109 +376,78 @@
                 return;
             }
 
-            unitaDiLavoro.forEach((unita, indexD) => {
+            // MATRICE GLOBALE: Assegnazione coordinata giorno per giorno per garantire 4-6 notti per notte e 6 notti totali a tutti
+            for (let g = 1; g <= giorniTotali; g++) {
+                let dataG = new Date(anno, meseIndex, g);
+                let dow = dataG.getDay(); // 0=Dom, 6=Sab
+
+                // 1. Blocco di smonto notte obbligatorio per chi ha fatto notte in g-1
+                if (g > 1) {
+                    unitaDiLavoro.forEach(u => {
+                        if (u.turni[g - 1] === "Notte") {
+                            u.turni[g] = "Riposo";
+                        }
+                    });
+                }
+
+                // 2. Selezioniamo chi può fare notte oggi (chi ha < 6 notti e non è in smonto)
+                let candidatiNotte = [];
+                unitaDiLavoro.forEach((u, idx) => {
+                    if (u.nottiFatte < 6 && u.turni[g] !== "Riposo") {
+                        // Verifichiamo incompatibilità di gruppo
+                        let okIncompat = true;
+                        incompatibilita.forEach(inc => {
+                            if (u.membri.includes(inc.op1) && u.membri.includes(inc.op2)) okIncompat = false;
+                        });
+                        if (okIncompat) {
+                            candidatiNotte.push(idx);
+                        }
+                    }
+                });
+
+                // Mischiamo in modo equo basato sul giorno
+                candidatiNotte.sort((a, b) => unitaDiLavoro[a].nottiFatte - unitaDiLavoro[b].nottiFatte || (a + g) % 2 - 0.5);
+
+                // Quante notti servono oggi? (Target 4 a 6, compatibilmente con chi ne ha bisogno)
+                let numNottiOggi = Math.min(6, Math.max(4, Math.min(candidatiNotte.length, unitaDiLavoro.filter(u => u.nottiFatte < 6).length)));
+                
+                // Se siamo a fine mese e qualcuno è rimasto indietro con le 6 notti, forziamo
+                let assegnateOggi = 0;
+                for (let i = 0; i < candidatiNotte.length && assegnateOggi < numNottiOggi; i++) {
+                    let idxUnita = candidatiNotte[i];
+                    unitaDiLavoro[idxUnita].turni[g] = "Notte";
+                    unitaDiLavoro[idxUnita].nottiFatte++;
+                    assegnateOggi++;
+                }
+
+                // 3. Gestione degli altri turni (Mattina, Riposo, Sabato Mattina) per chi non fa notte
+                unitaDiLavoro.forEach(u => {
+                    if (u.turni[g] !== "Notte" && u.turni[g] !== "Riposo") {
+                        if (dow === 0) {
+                            u.turni[g] = "Riposo"; // Domenica riposo standard se non di notte
+                        } else if (dow === 6) {
+                            // Sabato: un sabato mattina o riposo
+                            u.turni[g] = (g % 2 === 0) ? "Sabato Mattina" : "Riposo";
+                        } else {
+                            u.turni[g] = "Mattina";
+                        }
+                    }
+                });
+            }
+
+            // Renderizzazione grafica finale dei risultati
+            unitaDiLavoro.forEach((unita) => {
                 let card = document.createElement('div');
                 card.className = 'box';
-                let htmlTurni = `<h3 style="color:#d35400; border-bottom:1px solid #eee; padding-bottom:6px;">${unita.titolo}</h3>`;
+                let htmlTurni = `<h3 style="color:#d35400; border-bottom:1px solid #eee; padding-bottom:6px;">${unita.titolo} <span style="font-size:0.8rem; color:#27ae60; float:right;">Notti: ${unita.nottiFatte}/6</span></h3>`;
                 if (unita.sottotitolo) {
                     htmlTurni += `<p style="font-size:0.85rem; color:#7f8c8d; margin-top:0; margin-bottom:10px;">${unita.sottotitolo}</p>`;
                 }
 
-                // RACCOLTA PREVENTIVA ESATTA DELLE 6 NOTTI NEL MESE
-                let giorniNotteFissi = new Set();
-
-                // 1. Due domeniche di notte
-                if (domeniche.length >= 2) {
-                    let idx1 = indexD % domeniche.length;
-                    let idx2 = (indexD + 2) % domeniche.length;
-                    if (idx1 === idx2) idx2 = (idx1 + 1) % domeniche.length;
-                    giorniNotteFissi.add(domeniche[idx1]);
-                    giorniNotteFissi.add(domeniche[idx2]);
-                } else if (domeniche.length === 1) {
-                    giorniNotteFissi.add(domeniche[0]);
-                }
-
-                // 2. Un sabato di notte
-                let sabNotte = sabati.length > 0 ? sabati[indexD % sabati.length] : -1;
-                if (sabNotte !== -1) giorniNotteFissi.add(sabNotte);
-
-                // 3. Un sabato mattina (diverso da quello di notte)
-                let sabatMattinaScelto = -1;
-                let sabatiDispMat = sabati.filter(s => s !== sabNotte);
-                if (sabatiDispMat.length > 0) {
-                    sabatMattinaScelto = sabatiDispMat[indexD % sabatiDispMat.length];
-                } else if (sabati.length > 0) {
-                    sabatMattinaScelto = sabati[0];
-                }
-
-                // 4. Esattamente 3 notti feriali (per arrivare a quota 6 notti totali senza sballare)
-                let ferialiDispCopia = [...ferialiDisponibili];
-                let nFerialiAssegnate = 0;
-                let passo = (indexD + 3) % 7 + 1;
-                let tentativo = indexD;
-                
-                while (nFerialiAssegnate < 3 && ferialiDispCopia.length > 0 && tentativo < 100) {
-                    let pos = (tentativo * passo) % ferialiDispCopia.length;
-                    let gFeriale = ferialiDispCopia[pos];
-                    
-                    // Controlliamo che non sia adiacente a un'altra notte già scelta (per evitare conflitti di smonto)
-                    if (!giorniNotteFissi.has(gFeriale - 1) && !giorniNotteFissi.has(gFeriale + 1) && !giorniNotteFissi.has(gFeriale)) {
-                        giorniNotteFissi.add(gFeriale);
-                        nFerialiAssegnate++;
-                    }
-                    tentativo++;
-                }
-                // Se per restrizioni severe ne mancano, le piazziamo comunque nei giorni disponibili liberi
-                while (nFerialiAssegnate < 3 && ferialiDispCopia.length > 0) {
-                    let gFeriale = ferialiDispCopia.pop();
-                    if (!giorniNotteFissi.has(gFeriale)) {
-                        giorniNotteFissi.add(gFeriale);
-                        nFerialiAssegnate++;
-                    }
-                }
-
-                // GENERAZIONE GIORNO PER GIORNO CON CONTROLLO RIGOROSO DEL RIPOSO SMONTO
-                let inSmontoNotte = false;
-
                 for (let giorno = 1; giorno <= giorniTotali; giorno++) {
                     let dataCorrente = new Date(anno, meseIndex, giorno);
-                    let indiceGiornoSettimana = dataCorrente.getDay();
-                    let nomeGiorno = nomiGiorni[indiceGiornoSettimana];
-                    let turnoScelto = "Mattina";
-
-                    // Se ieri era notte, oggi scatta rigorosamente il Riposo (smonto)
-                    if (inSmontoNotte) {
-                        turnoScelto = "Riposo";
-                        inSmontoNotte = false;
-                    } 
-                    else if (giorniNotteFissi.has(giorno)) {
-                        turnoScelto = "Notte";
-                        inSmontoNotte = true; // Attiva lo smonto obbligatorio per il giorno dopo
-                    } 
-                    else {
-                        if (nomeGiorno === "Sabato") {
-                            if (giorno === sabatMattinaScelto) {
-                                turnoScelto = "Sabato Mattina";
-                            } else {
-                                turnoScelto = "Riposo";
-                            }
-                        } 
-                        else if (nomeGiorno === "Domenica") {
-                            turnoScelto = "Riposo";
-                        } 
-                        else {
-                            turnoScelto = "Mattina";
-                        }
-                    }
-
-                    // Incompatibilità coppie
-                    incompatibilita.forEach(inc => {
-                        let haOp1 = unita.membri.includes(inc.op1);
-                        let haOp2 = unita.membri.includes(inc.op2);
-                        if (haOp1 && haOp2) {
-                            turnoScelto = "Riposo";
-                        }
-                    });
+                    let nomeGiorno = nomiGiorni[dataCorrente.getDay()];
+                    let turnoScelto = unita.turni[giorno];
 
                     htmlTurni += `
                         <div class="turno-row">
