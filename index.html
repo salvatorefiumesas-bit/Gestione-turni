@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -80,29 +81,29 @@
     <div class="box">
         <h3>👷 Squadra Operativa (Personale)</h3>
         <div id="listaDipendentiInput">
-            <div class="employee-row"><input type="text" value="NOCERINO"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="FIUME"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="VICEDOMINI"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="RUSSO E."><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="ESPOSITO D."><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="TROMBETTA"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="SEMONELLA"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="DE LELLA"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="PICCIRILLO"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="LOMBARDO"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="ESPOSITO G."><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="TAVOLOZZA"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="SECONDULFO"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="PICALE"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="MILO"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="GAS"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="COSTABILE L."><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="DELLA VOLPE"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="PENNACCHIO"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="GUARRACINO"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="PICCOLO"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="DE CICCO"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
-            <div class="employee-row"><input type="text" value="MARZANO"><button class="btn-danger" onclick="this.parentElement.remove()">✕</button></div>
+            <div class="employee-row"><input type="text" value="NOCERINO"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="FIUME"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="VICEDOMINI"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="RUSSO E."><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="ESPOSITO D."><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="TROMBETTA"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="SEMONELLA"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="DE LELLA"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="PICCIRILLO"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="LOMBARDO"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="ESPOSITO G."><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="TAVOLOZZA"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="SECONDULFO"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="PICALE"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="MILO"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="GAS"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="COSTABILE L."><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="DELLA VOLPE"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="PENNACCHIO"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="GUARRACINO"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="PICCOLO"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="DE CICCO"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
+            <div class="employee-row"><input type="text" value="MARZANO"><button class="btn-danger" onclick="this.parentElement.remove(); aggiornaSelectsDinamiche();">✕</button></div>
         </div>
         <input type="text" id="nuovoNome" placeholder="Nome e cognome operatore..." style="margin-top: 10px;">
         <button onclick="aggiungiDipendente()">+ Aggiungi Operatore</button>
@@ -161,7 +162,9 @@
             let inputs = document.querySelectorAll('#listaDipendentiInput input');
             let arr = [];
             inputs.forEach(inp => {
-                if (inp.value.trim() !== "") arr.push(inp.value.trim().toUpperCase());
+                if (inp && inp.value.trim() !== "") {
+                    arr.push(inp.value.trim().toUpperCase());
+                }
             });
             return arr;
         }
@@ -310,6 +313,7 @@
             let anno = Number(document.getElementById('annoSelezionato').value);
             
             let container = document.getElementById('area-pdf');
+            if (!container) return;
             container.innerHTML = `<h2 style="text-align:center; color:var(--dark); border-bottom: 2px solid var(--primary); padding-bottom: 10px;">Programma Turni Cantieri - ${nomeMeseTesto} ${anno}</h2>`;
 
             let unitaDiLavoro = [];
@@ -346,4 +350,141 @@
                 if (d.getDay() === 6) sabati.push(g);
             }
 
-            unitaDiLavoro.fo
+            unitaDiLavoro.forEach((unita, indexD) => {
+                let card = document.createElement('div');
+                card.className = 'box';
+                let htmlTurni = `<h3 style="color:#d35400; border-bottom:1px solid #eee; padding-bottom:6px;">${unita.titolo}</h3>`;
+                if (unita.sottotitolo) {
+                    htmlTurni += `<p style="font-size:0.85rem; color:#7f8c8d; margin-top:0; margin-bottom:10px;">${unita.sottotitolo}</p>`;
+                }
+
+                // Almeno 2 domeniche di notte
+                let domNotteSet = new Set();
+                if (domeniche.length >= 2) {
+                    let idx1 = indexD % domeniche.length;
+                    let idx2 = (indexD + 2) % domeniche.length;
+                    if (idx1 === idx2) idx2 = (idx1 + 1) % domeniche.length;
+                    domNotteSet.add(domeniche[idx1]);
+                    domNotteSet.add(domeniche[idx2]);
+                } else if (domeniche.length === 1) {
+                    domNotteSet.add(domeniche[0]);
+                }
+
+                // 1 sabato di notte
+                let sabNotte = sabati.length > 0 ? sabati[indexD % sabati.length] : -1;
+
+                // Altre 3 notti feriali per arrivare a 6 notti totali nel mese
+                let nottiFerialiAssegnate = new Set();
+                let giorniFerialiDisponibili = [];
+                for (let g = 1; g <= giorniTotali; g++) {
+                    let d = new Date(anno, meseIndex, g);
+                    let dow = d.getDay();
+                    if (dow !== 0 && dow !== 6) { 
+                        giorniFerialiDisponibili.push(g);
+                    }
+                }
+
+                let nFerialiDaFare = 3;
+                for (let i = 0; i < nFerialiDaFare && giorniFerialiDisponibili.length > 0; i++) {
+                    let pos = (indexD * 5 + i * 7) % giorniFerialiDisponibili.length;
+                    let giornoScelto = giorniFerialiDisponibili.splice(pos, 1)[0];
+                    nottiFerialiAssegnate.add(giornoScelto);
+                }
+
+                let eraNotteIeri = false;
+
+                for (let giorno = 1; giorno <= giorniTotali; giorno++) {
+                    let dataCorrente = new Date(anno, meseIndex, giorno);
+                    let indiceGiornoSettimana = dataCorrente.getDay();
+                    let nomeGiorno = nomiGiorni[indiceGiornoSettimana];
+                    let turnoScelto = "Mattina";
+
+                    if (eraNotteIeri) {
+                        turnoScelto = "Riposo";
+                        eraNotteIeri = false; 
+                    } 
+                    else {
+                        if (nomeGiorno === "Sabato") {
+                            if (giorno === sabNotte) {
+                                turnoScelto = "Notte";
+                                eraNotteIeri = true;
+                            } else {
+                                turnoScelto = (giorno % 2 === (indexD % 2)) ? "Riposo" : "Mattina";
+                            }
+                        } 
+                        else if (nomeGiorno === "Domenica") {
+                            if (domNotteSet.has(giorno)) {
+                                turnoScelto = "Notte";
+                                eraNotteIeri = true;
+                            } else {
+                                turnoScelto = "Riposo";
+                            }
+                        } 
+                        else {
+                            if (nottiFerialiAssegnate.has(giorno)) {
+                                turnoScelto = "Notte";
+                                eraNotteIeri = true;
+                            } else {
+                                turnoScelto = "Mattina";
+                            }
+                        }
+                    }
+
+                    incompatibilita.forEach(inc => {
+                        let unitaContiene1 = unita.membri.includes(inc.op1);
+                        let unitaContiene2 = unita.membri.includes(inc.op2);
+                        if (unitaContiene1 && unitaContiene2) {
+                            turnoScelto = "Riposo";
+                        }
+                    });
+
+                    htmlTurni += `
+                        <div class="turno-row">
+                            <label>${nomeGiorno} ${giorno} ${nomeMeseTesto} ${anno}:</label>
+                            ${creaSelectTurno(turnoScelto)}
+                        </div>
+                    `;
+                }
+
+                card.innerHTML = htmlTurni;
+                container.appendChild(card);
+            });
+
+            let btnPdf = document.getElementById('btnEsportaPDF');
+            if (btnPdf) btnPdf.style.display = 'block';
+        }
+
+        function scaricaPDF() {
+            let selectMese = document.getElementById('meseSelezionato');
+            let nomeMeseTesto = selectMese.options[selectMese.selectedIndex].text;
+            let anno = document.getElementById('annoSelezionato').value;
+            let elemento = document.getElementById('area-pdf');
+            if (!elemento) return;
+            
+            let selects = elemento.querySelectorAll('select');
+            selects.forEach(select => {
+                let span = document.createElement('span');
+                span.style.fontWeight = 'bold';
+                span.style.fontSize = '0.85rem';
+                span.textContent = select.value;
+                select.parentNode.replaceChild(span, select);
+            });
+
+            let opzioni = {
+                margin:       10,
+                filename:     `Turni_Strada_${nomeMeseTesto}_${anno}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opzioni).from(elemento).save().then(() => {
+                generaTurniMese();
+            });
+        }
+
+        aggiornaSelectsDinamiche();
+    </script>
+
+</body>
+</html>
