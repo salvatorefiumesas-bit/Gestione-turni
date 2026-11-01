@@ -108,20 +108,13 @@
         <button onclick="aggiungiDipendente()">+ Aggiungi Operatore</button>
     </div>
 
-    <!-- Gestione Squadre / Coppie Fisse -->
+    <!-- Gestione Squadre / Coppie Fisse (Vuota di default) -->
     <div class="box" style="border-left-color: #2980b9;">
         <h3 style="color: #2980b9;">👥 Coppie / Squadre Fisse (Turnazione Insieme)</h3>
-        <p style="font-size: 0.85rem; color: #666; margin-bottom: 10px;">Unisci operatori che devono lavorare sempre insieme.</p>
+        <p style="font-size: 0.85rem; color: #666; margin-bottom: 10px;">Unisci operatori che devono lavorare sempre insieme (lascia vuoto se non desideri coppie fisse).</p>
         
         <div id="listaSquadreCreate" style="margin-bottom: 12px;">
-            <div class="squadra-card-item">
-                <div><strong>Pattuglia 1</strong>: <span style="color:#555;">NOCERINO, FIUME</span></div>
-                <button class="btn-danger" style="width: 32px; height: 32px; font-size: 0.8rem;" onclick="this.parentElement.remove()">✕</button>
-            </div>
-            <div class="squadra-card-item">
-                <div><strong>Pattuglia 2</strong>: <span style="color:#555;">VICEDOMINI, RUSSO E.</span></div>
-                <button class="btn-danger" style="width: 32px; height: 32px; font-size: 0.8rem;" onclick="this.parentElement.remove()">✕</button>
-            </div>
+            <p style='font-size:0.85rem; color:#95a5a6; font-style:italic;'>Nessuna squadra creata.</p>
         </div>
 
         <input type="text" id="nomeSquadra" placeholder="Nome squadra (es. Pattuglia A)...">
@@ -130,7 +123,7 @@
         <button onclick="aggiungiSquadra()" style="background: #2980b9;">+ Crea Squadra</button>
     </div>
 
-    <!-- Gestione Incompatibilità / Divieti -->
+    <!-- Gestione Incompatibilità / Divieti (Vuota di default) -->
     <div class="box" style="border-left-color: #c0392b;">
         <h3 style="color: #c0392b;">⛔ Incompatibilità (Operatori da NON mettere insieme)</h3>
         <p style="font-size: 0.85rem; color: #666; margin-bottom: 10px;">Seleziona due operatori che non devono mai capitare nello stesso turno.</p>
@@ -315,25 +308,41 @@
             if (!container) return;
             container.innerHTML = `<h2 style="text-align:center; color:var(--dark); border-bottom: 2px solid var(--primary); padding-bottom: 10px;">Programma Turni Cantieri - ${nomeMeseTesto} ${anno}</h2>`;
 
+            // Costruiamo la lista completa delle entità da pianificare:
+            // 1. Singoli dipendenti che NON fanno parte di nessuna squadra
+            let membriInSquadra = new Set();
+            squadres = squadre.forEach(sq => sq.membri.forEach(m => membriInSquadra.add(m)));
+
             let unitaDiLavoro = [];
-            if (squadre.length > 0) {
-                unitaDiLavoro = squadre.map(sq => ({
+            
+            // Aggiungiamo le squadre create
+            squadre.forEach(sq => {
+                unitaDiLavoro.push({
                     tipo: 'squadra',
                     titolo: `👥 Squadra: ${sq.nome}`,
                     sottotitolo: `Membri: ${sq.membri.join(', ')}`,
                     membri: sq.membri
-                }));
-            } else {
-                unitaDiLavoro = dipendenti.map(d => ({
-                    tipo: 'singolo',
-                    titolo: `👤 Operatore: ${d}`,
-                    sottotitolo: ``,
-                    membri: [d]
-                }));
-            }
+                });
+            });
+
+            // Aggiungiamo i dipendenti singoli (che non sono in alcuna squadra)
+            dipendenti.forEach(d => {
+                let inSq = false;
+                squadre.forEach(sq => {
+                    if (sq.membri.includes(d)) inSq = true;
+                });
+                if (!inSq) {
+                    unitaDiLavoro.push({
+                        tipo: 'singolo',
+                        titolo: `👤 Operatore: ${d}`,
+                        sottotitolo: ``,
+                        membri: [d]
+                    });
+                }
+            });
 
             if (unitaDiLavoro.length === 0) {
-                container.innerHTML += "<p style='color:red; text-align:center;'>Aggiungi almeno un operatore o una squadra!</p>";
+                container.innerHTML += "<p style='color:red; text-align:center;'>Aggiungi almeno un operatore!</p>";
                 let btnPdf = document.getElementById('btnEsportaPDF');
                 if (btnPdf) btnPdf.style.display = 'none';
                 return;
@@ -357,7 +366,7 @@
                     htmlTurni += `<p style="font-size:0.85rem; color:#7f8c8d; margin-top:0; margin-bottom:10px;">${unita.sottotitolo}</p>`;
                 }
 
-                // 1. Almeno 2 domeniche di notte
+                // Almeno 2 domeniche di notte
                 let domNotteSet = new Set();
                 if (domeniche.length >= 2) {
                     let idx1 = indexD % domeniche.length;
@@ -369,10 +378,10 @@
                     domNotteSet.add(domeniche[0]);
                 }
 
-                // 2. 1 sabato di notte
+                // 1 sabato di notte
                 let sabNotte = sabati.length > 0 ? sabati[indexD % sabati.length] : -1;
 
-                // 3. Altre 4 notti feriali per arrivare esattamente a 6 notti totali nel mese (2 dom + 1 sab + 4 feriali = 6)
+                // Altre 4 notti feriali per arrivare esattamente a 6 notti totali
                 let nottiFerialiAssegnate = new Set();
                 let giorniFerialiDisponibili = [];
                 for (let g = 1; g <= giorniTotali; g++) {
@@ -429,11 +438,12 @@
                         }
                     }
 
+                    // Controllo incompatibilità: se un'unità contiene membri che hanno un divieto incrociato nello stesso giorno, gestiamo il turno
                     incompatibilita.forEach(inc => {
-                        let unitaContiene1 = unita.membri.includes(inc.op1);
-                        let unitaContiene2 = unita.membri.includes(inc.op2);
-                        if (unitaContiene1 && unitaContiene2) {
-                            turnoScelto = "Riposo";
+                        let haOp1 = unita.membri.includes(inc.op1);
+                        let haOp2 = unita.membri.includes(inc.op2);
+                        if (haOp1 && haOp2) {
+                            turnoScelto = "Riposo"; // Se per errore sono nella stessa unità ma incompatibili, vanno a riposo di sicurezza
                         }
                     });
 
