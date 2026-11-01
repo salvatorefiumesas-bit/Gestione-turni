@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestione Turni - Lavori Stradali</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #f39c12;
+            --primary-dark: #d68910;
+            --dark: #2c3e50;
+            --bg: #f8f9fa;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 15px; background: var(--bg); color: #333; max-width: 800px; margin: auto; }
+        h1 { color: var(--dark); font-size: 1.5rem; text-align: center; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+        .subtitle { text-align: center; color: #7f8c8d; font-size: 0.9rem; margin-bottom: 20px; }
+        
+        .box { background: white; padding: 18px; margin-bottom: 15px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border-left: 5px solid var(--primary); }
+        .box h3 { margin-top: 0; color: var(--dark); font-size: 1.1rem; }
+        
+        label { font-size: 0.9rem; color: #555; display: block; margin-bottom: 5px; }
+        input, select { padding: 10px; font-size: 1rem; margin: 5px 0 12px 0; width: 100%; box-sizing: border-box; border: 1px solid #ddd; border-radius: 6px; background: #fff; }
+        
+        button { background: var(--primary); color: white; border: none; padding: 12px; font-size: 1rem; border-radius: 6px; cursor: pointer; font-weight: bold; width: 100%; transition: background 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
+        button:hover { background: var(--primary-dark); }
+        
+        .btn-danger { background: #e74c3c; width: 50px; margin: 0; padding: 0; height: 42px; border-radius: 6px; }
+        .btn-danger:hover { background: #c0392b; }
+        .btn-pdf { background: #27ae60; margin-top: 10px; }
+        .btn-pdf:hover { background: #219653; }
+        
+        .employee-row { display: flex; gap: 10px; margin-bottom: 8px; align-items: center; }
+        .employee-row input { margin: 0; }
+        
+        .turno-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f1f1; padding: 6px 0; }
+        .turno-row label { font-size: 0.85rem; font-weight: 600; width: 50%; margin: 0; color: #34495e; }
+        .turno-row select { width: 48%; padding: 6px; font-size: 0.85rem; margin: 0; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <h1>🚧 Cantieri & Strade</h1>
+    <div class="subtitle">Pianificatore Turni Operativi Stradali</div>
+
+    <!-- Selezione Mese e Anno Automatico -->
+    <div class="box">
+        <label><b>📅 Mese e Anno di Riferimento:</b></label>
+        <div style="display: flex; gap: 10px;">
+            <select id="meseSelezionato" style="flex: 2;">
+                <option value="0">Gennaio</option>
+                <option value="1">Febbraio</option>
+                <option value="2">Marzo</option>
+                <option value="3">Aprile</option>
+                <option value="4">Maggio</option>
+                <option value="5">Giugno</option>
+                <option value="6">Luglio</option>
+                <option value="7">Agosto</option>
+                <option value="8">Settembre</option>
+                <option value="9">Ottobre</option>
+                <option value="10" selected>Novembre</option>
+                <option value="11">Dicembre</option>
+            </select>
+            <!-- L'anno si imposta in automatico sul reale anno corrente del dispositivo -->
+            <input type="text" id="annoSelezionato" readonly style="flex: 1; text-align: center; font-weight: bold; background: #eef2f3; margin: 5px 0 12px 0;">
+        </div>
+    </div>
+
+    <!-- Gestione Dipendenti -->
+    <div class="box">
+        <h3>👷 Squadra Operativa (Personale)</h3>
+        <div id="listaDipendentiInput"></div>
+        <input type="text" id="nuovoNome" placeholder="Nome e cognome operatore...">
+        <button onclick="aggiungiDipendente()">+ Aggiungi Operatore</button>
+    </div>
+
+    <!-- Pulsanti Azione -->
+    <button onclick="generaTurniMese()" style="background: var(--dark); font-size: 1rem;">🔄 Genera Nuovi Turni Stradali</button>
+    <button id="btnEsportaPDF" onclick="scaricaPDF()" class="btn-pdf" style="display: none;">📄 Scarica Programma in PDF</button>
+
+    <!-- Risultati / Area PDF -->
+    <div id="area-pdf" style="margin-top: 20px;"></div>
+
+    <script>
+        // Imposta automaticamente l'anno reale all'avvio (es. 2026, 2027, ecc.)
+        const annoCorrente = new Date().getFullYear();
+        document.getElementById('annoSelezionato').value = annoCorrente;
+
+        let dipendenti = ["Mario Rossi", "Giuseppe Verdi", "Anna Bianchi", "Lucia Neri"];
+        const nomiGiorni = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
+        
+        const listaOpzioniTurni = [
+            "Mattina Cantiere (Lun-Ven)",
+            "Notte Stradale",
+            "Notte Domenica",
+            "Sabato Mattina",
+            "Sabato Notte",
+            "Riposo",
+            "Riposo (Post-Notte)",
+            "Weekend Libero",
+            "Ferie / Permesso"
+        ];
+
+        function aggiornaListaInput() {
+            let container = document.getElementById('listaDipendentiInput');
+            container.innerHTML = "";
+            dipendenti.forEach((nome, index) => {
+                let row = document.createElement('div');
+                row.className = 'employee-row';
+                row.innerHTML = `
+                    <input type="text" value="${nome}" onchange="modificaNome(${index}, this.value)">
+                    <button class="btn-danger" onclick="rimuoviDipendente(${index})">✕</button>
+                `;
+                container.appendChild(row);
+            });
+        }
+
+        function aggiungiDipendente() {
+            let input = document.getElementById('nuovoNome');
+            if (input.value.trim() !== "") {
+                dipendenti.push(input.value.trim());
+                input.value = "";
+                aggiornaListaInput();
+            }
+        }
+
+        function rimuoviDipendente(index) {
+            dipendenti.splice(index, 1);
+            aggiornaListaInput();
+        }
+
+        function modificaNome(index, nuovoNome) {
+            dipendenti[index] = nuovoNome;
+        }
+
+        function creaSelectTurno(turnoDefault) {
+            let select = `<select onchange="this.setAttribute('data-valore', this.value)">`;
+            listaOpzioniTurni.forEach(opt => {
+                let selected = (opt === turnoDefault) ? "selected" : "";
+                select += `<option value="${opt}" ${selected}>${opt}</option>`;
+            });
+            select += `</select>`;
+            return select;
+        }
+
+        function getGiorniNelMese(anno, meseIndex) {
+            // Restituisce esattamente quanti giorni ha quel mese (es. 28, 29, 30 o 31) calcolando anche gli anni bisestili
+            return new Date(anno, Number(meseIndex) + 1, 0).getDate();
+        }
+
+        function generaTurniMese() {
+            let selectMese = document.getElementById('meseSelezionato');
+            let meseIndex = selectMese.value;
+            let nomeMeseTesto = selectMese.options[selectMese.selectedIndex].text;
+            let anno = Number(document.getElementById('annoSelezionato').value);
+            
+            let container = document.getElementById('area-pdf');
+            container.innerHTML = `<h2 style="text-align:center; color:var(--dark); border-bottom: 2px solid var(--primary); padding-bottom: 10px;">Programma Turni Cantieri - ${nomeMeseTesto} ${anno}</h2>`;
+
+            if (dipendenti.length === 0) {
+                container.innerHTML += "<p style='color:red; text-align:center;'>Aggiungi almeno un operatore!</p>";
+                document.getElementById('btnEsportaPDF').style.display = 'none';
+                return;
+            }
+
+            // Calcolo dinamico dei giorni esatti del mese selezionato (30, 31, 28 o 29)
+            let giorniTotali = getGiorniNelMese(anno, meseIndex);
+
+            dipendenti.forEach((nome, indexD) => {
+                let card = document.createElement('div');
+                card.className = 'box';
+                let htmlTurni = `<h3 style="color:#d35400; border-bottom:1px solid #eee; padding-bottom:8px;">👤 ${nome}</h3>`;
+                
+                let weekendLiberoScelto = Math.floor(Math.random() * 4) + 1;
+                
+                let giornoPrecedenteNotte = false;
+                let contNotti = 0;
+                let nottiDomenicaFatte = 0;
+                let sabatoMattinaFatto = false;
+                let sabatoNotteFatto = false;
+                let contatoreSabati = 0;
+
+                for (let giorno = 1; giorno <= giorniTotali; giorno++) {
+                    // Calcolo reale del giorno della settimana basato su Anno, Mese e Giorno esatto
+                    let dataCorrente = new Date(anno, meseIndex, giorno);
+                    let indiceGiornoSettimana = dataCorrente.getDay(); // 0 = Domenica, 1 = Lunedì, ecc.
+                    let nomeGiorno = nomiGiorni[indiceGiornoSettimana];
+                    let turnoScelto = "";
+
+                    if (nomeGiorno === "Sabato") contatoreSabati++;
+
+                    if (giornoPrecedenteNotte) {
+                        turnoScelto = "Riposo (Post-Notte)";
+                        giornoPrecedenteNotte = false;
+                    } 
+                    else if ((nomeGiorno === "Sabato" && contatoreSabati === weekendLiberoScelto) || 
+                             (nomeGiorno === "Domenica" && contatoreSabati === weekendLiberoScelto)) {
+                        turnoScelto = "Weekend Libero";
+                    } 
+                    else {
+                        if (nomeGiorno === "Sabato") {
+                            let faSabatoMattina = Math.random() > 0.5;
+                            if (!sabatoMattinaFatto && faSabatoMattina) {
+                                turnoScelto = "Sabato Mattina";
+                                sabatoMattinaFatto = true;
+                            } else if (!sabatoNotteFatto && contNotti < 6) {
+                                turnoScelto = "Sabato Notte";
+                                sabatoNotteFatto = true;
+                                contNotti++;
+                                giornoPrecedenteNotte = true;
+                            } else {
+                                turnoScelto = "Riposo";
+                            }
+                        } 
+                        else if (nomeGiorno === "Domenica") {
+                            let faDomenicaNotte = Math.random() > 0.4;
+                            if (nottiDomenicaFatte < 2 && contNotti < 6 && faDomenicaNotte) {
+                                turnoScelto = "Notte Domenica";
+                                nottiDomenicaFatte++;
+                                contNotti++;
+                                giornoPrecedenteNotte = true;
+                            } else {
+                                turnoScelto = "Riposo";
+                            }
+                        } 
+                        else {
+                            let estraiNotte = Math.random() < 0.25;
+                            if (contNotti < 6 && estraiNotte) {
+                                turnoScelto = "Notte Stradale";
+                                contNotti++;
+                                giornoPrecedenteNotte = true;
+                            } else {
+                                turnoScelto = "Mattina Cantiere (Lun-Ven)";
+                            }
+                        }
+                    }
+
+                    htmlTurni += `
+                        <div class="turno-row">
+                            <label>${nomeGiorno} ${giorno} ${nomeMeseTesto}:</label>
+                            ${creaSelectTurno(turnoScelto)}
+                        </div>
+                    `;
+                }
+
+                card.innerHTML = htmlTurni;
+                container.appendChild(card);
+            });
+
+            document.getElementById('btnEsportaPDF').style.display = 'block';
+        }
+
+        function scaricaPDF() {
+            let selectMese = document.getElementById('meseSelezionato');
+            let nomeMeseTesto = selectMese.options[selectMese.selectedIndex].text;
+            let anno = document.getElementById('annoSelezionato').value;
+            let elemento = document.getElementById('area-pdf');
+            
+            let selects = elemento.querySelectorAll('select');
+            selects.forEach(select => {
+                let span = document.createElement('span');
+                span.style.fontWeight = 'bold';
+                span.style.fontSize = '0.85rem';
+                span.textContent = select.value;
+                select.parentNode.replaceChild(span, select);
+            });
+
+            let opzioni = {
+                margin:       10,
+                filename:     `Turni_Strada_${nomeMeseTesto}_${anno}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2 },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            html2pdf().set(opzioni).from(elemento).save().then(() => {
+                generaTurniMese();
+            });
+        }
+
+        aggiornaListaInput();
+    </script>
+
+</body>
+</html>
