@@ -391,11 +391,49 @@ function generaTurniMese(){
 function scaricaPDF(){
   let m=document.getElementById('meseSelezionato');
   let nome=m.options[m.selectedIndex].text,anno=document.getElementById('annoSelezionato').value;
-  let el=document.getElementById('area-pdf');
-  let clone=el.cloneNode(true);
-  let orig=el.querySelectorAll('select'),cl=clone.querySelectorAll('select');
-  cl.forEach((sel,i)=>{let sp=document.createElement('span');sp.style.cssText='font-weight:bold;font-size:.85rem';sp.textContent=orig[i].value;sel.replaceWith(sp);});
-  html2pdf().set({margin:10,filename:`Turni_Strada_${nome}_${anno}.pdf`,image:{type:'jpeg',quality:.98},html2canvas:{scale:2},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}}).from(clone).save();
+  let cards=[...document.querySelectorAll('#area-pdf .box')];
+  if(!cards.length)return;
+
+  const colori={"Notte":"#d6eaf8","Mattina":"#fef9e7","Riposo":"#eaeded","Festa":"#fadbd8","Sabato Mattina":"#fdebd0","Ferie":"#d5f5e3"};
+
+  // una pagina A4 per ogni operatore/squadra, costruita da zero con larghezza fissa
+  const pagine=cards.map(card=>{
+    let h=card.querySelector('h3');
+    let stats=h.querySelector('span')?h.querySelector('span').textContent:'';
+    let titolo=[...h.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim();
+    let p=card.querySelector(':scope > p');
+    let membri=p?p.textContent:'';
+    let righe=[...card.querySelectorAll('.turno-row')].map(r=>{
+      let giorno=r.querySelector('label').textContent.replace(/:$/,'');
+      let turno=r.querySelector('select').value;
+      return `<tr style="background:${colori[turno]||'#fff'}"><td style="border:1px solid #ccc;padding:0 8px;height:22px;font-size:12px">${giorno}</td><td style="border:1px solid #ccc;padding:0 8px;height:22px;font-size:12px;font-weight:bold;width:150px">${turno}</td></tr>`;
+    }).join('');
+    let div=document.createElement('div');
+    div.style.cssText='width:720px;background:#fff;font-family:Arial,Helvetica,sans-serif;color:#222;';
+    div.innerHTML=
+      `<div style="font-size:13px;color:#555;text-align:center;margin-bottom:6px">Programma Turni Cantieri - ${nome} ${anno}</div>`
+      +`<div style="font-size:18px;font-weight:bold;color:#d35400;border-bottom:2px solid #f39c12;padding-bottom:4px">${titolo}</div>`
+      +`<div style="font-size:12px;color:#27ae60;margin:4px 0">${stats}</div>`
+      +(membri?`<div style="font-size:12px;color:#7f8c8d;margin-bottom:4px">${membri}</div>`:'')
+      +`<table style="width:100%;border-collapse:collapse;margin-top:6px">${righe}</table>`;
+    return div;
+  });
+
+  const opt={
+    margin:10,
+    filename:`Turni_Strada_${nome}_${anno}.pdf`,
+    image:{type:'jpeg',quality:.95},
+    html2canvas:{scale:2,scrollX:0,scrollY:0},
+    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
+    pagebreak:{mode:['css']}
+  };
+
+  // aggiungo una pagina nuova per ogni scheda
+  let worker=html2pdf().set(opt).from(pagine[0]).toPdf();
+  for(let i=1;i<pagine.length;i++){
+    worker=worker.get('pdf').then(pdf=>{pdf.addPage();}).from(pagine[i]).toContainer().toCanvas().toPdf();
+  }
+  worker.save();
 }
 
 init();
