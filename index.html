@@ -424,7 +424,6 @@
                     sottotitolo: `Membri: ${sq.membri.join(', ')}`,
                     membri: sq.membri,
                     nottiFatte: 0,
-                    giorniLavoratiFeriali: 0,
                     sabatiMattinaFatti: 0,
                     turni: Array(giorniTotali + 1).fill("")
                 });
@@ -438,7 +437,6 @@
                         sottotitolo: ``,
                         membri: [d],
                         nottiFatte: 0,
-                        giorniLavoratiFeriali: 0,
                         sabatiMattinaFatti: 0,
                         turni: Array(giorniTotali + 1).fill("")
                     });
@@ -494,106 +492,4 @@
                 let assegnateOggi = 0;
                 for (let i = 0; i < candidatiNotte.length && assegnateOggi < numNottiOggi; i++) {
                     let idxUnita = candidatiNotte[i];
-                    unitaDiLavoro[idxUnita].turni[g] = "Notte";
-                    unitaDiLavoro[idxUnita].nottiFatte++;
-                    assegnateOggi++;
-                }
-
-                // Assegnazione turni standard (Gestione rigida di un SOLO Sabato Mattina al mese per operatore)
-                unitaDiLavoro.forEach(u => {
-                    if (u.turni[g] === "") {
-                        if (dow === 0) {
-                            u.turni[g] = "Riposo";
-                        } else if (dow === 6) {
-                            // Se non ha ancora fatto il sabato mattina in questo mese, glielo diamo (a rotazione), altrimenti riposo
-                            if (u.sabatiMattinaFatti === 0 && (g % unitaDiLavoro.length === 0 || g <= 15)) {
-                                u.turni[g] = "Sabato Mattina";
-                                u.sabatiMattinaFatti++;
-                            } else {
-                                u.turni[g] = "Riposo";
-                            }
-                        } else {
-                            // Giorni feriali (Lunedì - Venerdì): raggiungiamo esattamente il target dei 21 giorni
-                            if (u.giorniLavoratiFeriali < giorniLavorativiFerialiTotali) {
-                                u.turni[g] = "Mattina";
-                                u.giorniLavoratiFeriali++;
-                            } else {
-                                u.turni[g] = "Riposo";
-                            }
-                        }
-                    }
-                });
-            }
-
-            // 3. Ricalcolo di riscontro finale per garantire l'esattezza dei giorni lavorativi feriali
-            unitaDiLavoro.forEach(u => {
-                let ferialiEffettivi = 0;
-                for (let g = 1; g <= giorniTotali; g++) {
-                    let d = new Date(anno, meseIndex, g);
-                    let dow = d.getDay();
-                    if (dow !== 0 && dow !== 6) {
-                        if (u.turni[g] === "Mattina" || u.turni[g] === "Notte") {
-                            ferialiEffettivi++;
-                        }
-                    }
-                }
-                u.giorniLavoratiFeriali = ferialiEffettivi;
-            });
-
-            // Renderizzazione risultati
-            unitaDiLavoro.forEach((unita) => {
-                let card = document.createElement('div');
-                card.className = 'box';
-                let htmlTurni = `<h3 style="color:#d35400; border-bottom:1px solid #eee; padding-bottom:6px;">${unita.titolo} <span style="font-size:0.8rem; color:#27ae60; float:right;">Notti: ${unita.nottiFatte}/6 | Lav. Feriali: ${unita.giorniLavoratiFeriali}/${giorniLavorativiFerialiTotali}</span></h3>`;
-                if (unita.sottotitolo) htmlTurni += `<p style="font-size:0.85rem; color:#7f8c8d; margin-top:0; margin-bottom:10px;">${unita.sottotitolo}</p>`;
-
-                for (let giorno = 1; giorno <= giorniTotali; giorno++) {
-                    let dataCorrente = new Date(anno, meseIndex, giorno);
-                    let nomeGiorno = nomiGiorni[dataCorrente.getDay()];
-                    let turnoScelto = unita.turni[giorno] || "Mattina";
-
-                    htmlTurni += `
-                        <div class="turno-row">
-                            <label>${nomeGiorno} ${giorno} ${nomeMeseTesto} ${anno}:</label>
-                            ${creaSelectTurno(turnoScelto)}
-                        </div>
-                    `;
-                }
-
-                card.innerHTML = htmlTurni;
-                container.appendChild(card);
-            });
-
-            document.getElementById('btnEsportaPDF').style.display = 'block';
-        }
-
-        function scaricaPDF() {
-            let selectMese = document.getElementById('meseSelezionato');
-            let nomeMeseTesto = selectMese.options[selectMese.selectedIndex].text;
-            let anno = document.getElementById('annoSelezionato').value;
-            let elemento = document.getElementById('area-pdf');
-            if (!elemento) return;
-            
-            elemento.querySelectorAll('select').forEach(select => {
-                let span = document.createElement('span');
-                span.style.fontWeight = 'bold';
-                span.style.fontSize = '0.85rem';
-                span.textContent = select.value;
-                select.parentNode.replaceChild(span, select);
-            });
-
-            html2pdf().set({
-                margin: 10,
-                filename: `Turni_Strada_${nomeMeseTesto}_${anno}.pdf`,
-                image: { type: 'jpeg', quality: 0.98 },
-                html2canvas: { scale: 2 },
-                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            }).from(elemento).save().then(() => generaTurniMese());
-        }
-
-        aggiornaSelectsDinamiche();
-        aggiornaFestiviMese();
-    </script>
-
-</body>
-</html>
+                    unitaDiLavoro[idxUnita].turni[g] = "Notte
