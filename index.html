@@ -138,7 +138,7 @@ select[data-t="Escluso"]{background:#d9dde4;color:#374151}
 
 <section class="box" style="--ac:#b85400">
   <h3>Festività e assegnazioni manuali</h3>
-  <label>Festività del mese (le notti dei festivi sono assegnate a rotazione in automatico)</label>
+  <label>Festività del mese (le notti dei festivi sono assegnate a rotazione in automatico; la mattina nei festivi non si fa, solo a mano)</label>
   <div id="infoFestiviMese"></div>
   <label>Assegna un operatore a un giorno, di notte o di mattina</label>
   <div id="listaFestiviManuali"><p class="vuoto">Nessuna assegnazione manuale inserita.</p></div>
@@ -530,7 +530,9 @@ function motoreTurni(o){
   const rnd=(()=>{let a=(o.seed===undefined?(Math.random()*4294967296):o.seed)>>>0;return()=>{a=(a+0x6D2B79F5)|0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};})();
   const mescola=a=>{for(let i=a.length-1;i>0;i--){let j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;};
   const dow=g=>new Date(o.anno,o.mese,g).getDay();
-  const fer=g=>{let d=dow(g);return d>=1&&d<=5;};
+  // I festivi rossi del calendario si comportano come la domenica: niente mattina (solo a mano), si fanno solo le notti
+  const fest=new Set(festiviDelMese(o.anno,o.mese).map(f=>f.g));
+  const fer=g=>{let d=dow(g);return d>=1&&d<=5&&!fest.has(g);};
   let target=0;for(let g=1;g<=N;g++)if(fer(g))target++;
   const B=NT+1; // max feriali "persi" tra notti feriali e smonti feriali per poter arrivare al target
   let unita=[],imp=new Set();
@@ -646,7 +648,7 @@ function motoreTurni(o){
   // se non coincidono col target, sposto una notte per correggere.
   const prospect=(u,S)=>{
     let c=costo(S)+((u.carryFlag&&fer(1))?1:0),p=S.length+target-c;
-    if(p<target){for(let g=1;g<=N;g++)if(dow(g)===6&&!S.includes(g)&&!S.includes(g-1)&&!u.man.has(g)&&!u.exM.has(g)){p++;break;}}
+    if(p<target){for(let g=1;g<=N;g++)if(dow(g)===6&&!fest.has(g)&&!S.includes(g)&&!S.includes(g-1)&&!u.man.has(g)&&!u.exM.has(g)){p++;break;}}
     return p;
   };
   unita.forEach(u=>{
@@ -738,7 +740,7 @@ function motoreTurni(o){
     for(let g=1;g<=N;g++)if(u.turni[g]===""&&u.exM.has(g)&&u.exN.has(g))u.turni[g]="Escluso";
     const ferie=u.turni.filter((t,g)=>t==="Escluso"&&fer(g)).length;
     if(lav()+ferie<target&&!u.turni.includes("Sabato Mattina")){
-      let sab=[];for(let g=1;g<=N;g++)if(u.turni[g]===""&&dow(g)===6&&!u.exM.has(g))sab.push(g);
+      let sab=[];for(let g=1;g<=N;g++)if(u.turni[g]===""&&dow(g)===6&&!fest.has(g)&&!u.exM.has(g))sab.push(g);
       let k=u.membri.length;
       sab=sab.filter(g=>satMat[g]+k<=MAXSAB);
       let kc={};sab.forEach(g=>{kc[g]=rnd();});
@@ -793,6 +795,8 @@ function generaTurniMese(){
   let rec=storico[pa+'-'+pm];
   let carry=rec?Object.keys(rec).filter(k=>rec[k]==='Notte'):[];
   let dow=g=>new Date(anno,mese,g).getDay();
+  const festSet=new Set(festiviDelMese(anno,mese).map(f=>f.g));
+  const lavg=g=>dow(g)>=1&&dow(g)<=5&&!festSet.has(g);
   area.dataset.key=anno+'-'+mese;
   area.innerHTML+=rec
     ?`<p class="msg ok">✔ Tenuto conto di ${nomiMesi[pm]} ${pa}: ${carry.length} operatori con notte l'ultimo giorno hanno lo smonto il giorno 1.</p>`
@@ -827,7 +831,7 @@ function generaTurniMese(){
       for(let g=1;g<=rr.N;g++){let c=rr.cov[sd.k][g];if(c>lim[1]||(c<lim[0]&&!(sd.k==='T'&&c===0)))p+=10;}
       rr.unita.forEach(u=>{if(u.daSquadra)return;let n=0,l=0,as=0;for(let g=1;g<=rr.N;g++){let t=u.turni[g];
         if(t==="Notte")n++;if(t==="Notte"||t==="Mattina"||t==="Sabato Mattina")l++;
-        if(t==="Escluso"&&dow(g)>=1&&dow(g)<=5)as++;}
+        if(t==="Escluso"&&lavg(g))as++;}
         p+=Math.abs(n-nt)*3+Math.abs(l-(rr.target-as))*2;});return p;};
     let r=null,migl=1e9;
     for(let tent=0;tent<4;tent++){let rr=lancia(),pp=punti(rr);if(pp<migl){migl=pp;r=rr;}if(pp===0)break;}
@@ -844,7 +848,7 @@ function generaTurniMese(){
       for(let g=1;g<=r.N;g++){let t=u.turni[g];
         if(t==="Notte"){n++;if(dow(g)===0)d++;}
         if(t==="Notte"||t==="Mattina"||t==="Sabato Mattina")l++;
-        if(t==="Escluso"&&dow(g)>=1&&dow(g)<=5)as++;}
+        if(t==="Escluso"&&lavg(g))as++;}
       let isSq=!!u.isSq;
       let card=document.createElement('div');card.className='box';card.dataset.membri=JSON.stringify(u.membri);card.dataset.sede=sd.nome;
       let html=`<h3>${isSq?'👥 Squadra: ':'👤 Operatore: '}${u.titolo} <span class="stats">Notti: ${n}/${nt} | Dom. notte: ${d} | Giorni lav.: ${l}/${r.target-as}${as?' | Esclusi: '+as:''}</span></h3>`;
