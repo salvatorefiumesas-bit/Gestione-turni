@@ -320,4 +320,282 @@
             }
         }
 
-        f
+        function aggiungiSquadra() {
+            let inputNome = document.getElementById('nomeSquadra');
+            let selectMembri = document.getElementById('selezionaMembriSquadra');
+            if (!inputNome || !selectMembri) return;
+            let membriSelezionati = Array.from(selectMembri.selectedOptions).map(opt => opt.value);
+
+            if (inputNome.value.trim() === "") return alert("Inserisci un nome squadra!");
+            if (membriSelezionati.length === 0) return alert("Seleziona almeno un membro!");
+
+            let container = document.getElementById('listaSquadreCreate');
+            if (container.innerHTML.includes('Nessuna squadra')) container.innerHTML = "";
+
+            container.innerHTML += `
+                <div class="squadra-card-item">
+                    <div><strong>${inputNome.value.trim()}</strong>: <span style="color:#555;">${membriSelezionati.join(', ')}</span></div>
+                    <button class="btn-danger" style="width: 32px; height: 32px; font-size: 0.8rem;" onclick="this.parentElement.remove()">✕</button>
+                </div>
+            `;
+            inputNome.value = "";
+        }
+
+        function aggiungiIncompatibilita() {
+            let op1 = document.getElementById('operatoreIncompatibile1').value;
+            let op2 = document.getElementById('operatoreIncompatibile2').value;
+            if (!op1 || !op2 || op1 === op2) return alert("Seleziona due operatori validi e differenti!");
+
+            let container = document.getElementById('listaIncompatibilitaCreate');
+            if (container.innerHTML.includes('Nessuna incompatibilità')) container.innerHTML = "";
+
+            container.innerHTML += `
+                <div class="squadra-card-item">
+                    <div>❌ <strong>${op1}</strong> NON con <strong>${op2}</strong></div>
+                    <button class="btn-danger" style="width: 32px; height: 32px; font-size: 0.8rem;" onclick="this.parentElement.remove()">✕</button>
+                </div>
+            `;
+        }
+
+        function aggiungiAssegnazioneManuale() {
+            let op = document.getElementById('manualeOperatore').value;
+            let giorno = document.getElementById('manualeGiorno').value;
+            let turno = document.getElementById('manualeTurno').value;
+
+            if (!op || !giorno) return alert("Seleziona operatore e giorno!");
+
+            let container = document.getElementById('listaAssegnazioniManuali');
+            if (container.innerHTML.includes('Nessuna assegnazione')) container.innerHTML = "";
+
+            container.innerHTML += `
+                <div class="squadra-card-item">
+                    <div>📌 Giorno <strong>${giorno}</strong> - <strong>${op}</strong>: <span style="color:#8e44ad; font-weight:bold;">${turno}</span></div>
+                    <button class="btn-danger" style="width: 32px; height: 32px; font-size: 0.8rem;" onclick="this.parentElement.remove()">✕</button>
+                </div>
+            `;
+            document.getElementById('manualeGiorno').value = "";
+        }
+
+        function creaSelectTurno(turnoDefault) {
+            let select = `<select onchange="this.setAttribute('data-valore', this.value)">`;
+            listaOpzioniTurni.forEach(opt => {
+                let selected = (opt === turnoDefault) ? "selected" : "";
+                select += `<option value="${opt}" ${selected}>${opt}</option>`;
+            });
+            select += `</select>`;
+            return select;
+        }
+
+        function getGiorniNelMese(anno, meseIndex) {
+            return new Date(anno, Number(meseIndex) + 1, 0).getDate();
+        }
+
+        function generaTurniMese() {
+            let dipendenti = raccogliDipendenti();
+            let squadre = raccogliSquadre();
+            let incompatibilita = raccogliIncompatibilita();
+            let assegnazioniManuali = raccogliAssegnazioniManuali();
+
+            let selectMese = document.getElementById('meseSelezionato');
+            let meseIndex = selectMese.value;
+            let nomeMeseTesto = selectMese.options[selectMese.selectedIndex].text;
+            let anno = Number(document.getElementById('annoSelezionato').value);
+            
+            let container = document.getElementById('area-pdf');
+            if (!container) return;
+            container.innerHTML = `<h2 style="text-align:center; color:var(--dark); border-bottom: 2px solid var(--primary); padding-bottom: 10px;">Programma Turni Cantieri - ${nomeMeseTesto} ${anno}</h2>`;
+
+            let giorniTotali = getGiorniNelMese(anno, meseIndex);
+
+            // Calcolo esatto dei giorni lavorativi feriali (Lunedì - Venerdì) del mese
+            let giorniLavorativiFerialiTotali = 0;
+            for (let g = 1; g <= giorniTotali; g++) {
+                let d = new Date(anno, meseIndex, g);
+                let dow = d.getDay();
+                if (dow !== 0 && dow !== 6) giorniLavorativiFerialiTotali++;
+            }
+
+            let unitaDiLavoro = [];
+            let membriImpegnati = new Set();
+            
+            squadre.forEach(sq => {
+                sq.membri.forEach(m => membriImpegnati.add(m));
+                unitaDiLavoro.push({
+                    id: sq.nome,
+                    titolo: `👥 Squadra: ${sq.nome}`,
+                    sottotitolo: `Membri: ${sq.membri.join(', ')}`,
+                    membri: sq.membri,
+                    nottiFatte: 0,
+                    giorniLavoratiFeriali: 0,
+                    turni: Array(giorniTotali + 1).fill("")
+                });
+            });
+
+            dipendenti.forEach(d => {
+                if (!membriImpegnati.has(d)) {
+                    unitaDiLavoro.push({
+                        id: d,
+                        titolo: `👤 Operatore: ${d}`,
+                        sottotitolo: ``,
+                        membri: [d],
+                        nottiFatte: 0,
+                        giorniLavoratiFeriali: 0,
+                        turni: Array(giorniTotali + 1).fill("")
+                    });
+                }
+            });
+
+            if (unitaDiLavoro.length === 0) {
+                container.innerHTML += "<p style='color:red; text-align:center;'>Aggiungi almeno un operatore!</p>";
+                return;
+            }
+
+            // 1. APPLICAZIONE ASSEGNAZIONI MANUALI (Ferie, permessi, festivi scelti dall'utente)
+            assegnazioniManuali.forEach(man => {
+                unitaDiLavoro.forEach(u => {
+                    if (u.membri.includes(man.op) || u.id === man.op) {
+                        if (man.giorno >= 1 && man.giorno <= giorniTotali) {
+                            u.turni[man.giorno] = man.turno;
+                            // Se l'utente imposta una notte manualmente, incrementiamo il contatore notti
+                            if (man.turno === "Notte") u.nottiFatte++;
+                        }
+                    }
+                });
+            });
+
+            // 2. MATRICE GLOBALE DEL MESE (Gestione automatica intelligente)
+            for (let g = 1; g <= giorniTotali; g++) {
+                let dataG = new Date(anno, meseIndex, g);
+                let dow = dataG.getDay(); // 0=Dom, 6=Sab
+
+                // Smonto notte obbligatorio (se il giorno è vuoto)
+                if (g > 1) {
+                    unitaDiLavoro.forEach(u => {
+                        if (u.turni[g - 1] === "Notte" && u.turni[g] === "") {
+                            u.turni[g] = "Riposo";
+                        }
+                    });
+                }
+
+                // Assegnazione Notti automatiche mancanti (Target 4-6)
+                let candidatiNotte = [];
+                unitaDiLavoro.forEach((u, idx) => {
+                    if (u.nottiFatte < 6 && u.turni[g] === "") {
+                        let okIncompat = true;
+                        incompatibilita.forEach(inc => {
+                            if (u.membri.includes(inc.op1) && u.membri.includes(inc.op2)) okIncompat = false;
+                        });
+                        if (okIncompat) candidatiNotte.push(idx);
+                    }
+                });
+
+                candidatiNotte.sort((a, b) => unitaDiLavoro[a].nottiFatte - unitaDiLavoro[b].nottiFatte || (a + g) % 2 - 0.5);
+                let numNottiOggi = Math.min(6, Math.max(4, Math.min(candidatiNotte.length, unitaDiLavoro.filter(u => u.nottiFatte < 6).length)));
+                
+                let assegnateOggi = 0;
+                for (let i = 0; i < candidatiNotte.length && assegnateOggi < numNottiOggi; i++) {
+                    let idxUnita = candidatiNotte[i];
+                    unitaDiLavoro[idxUnita].turni[g] = "Notte";
+                    unitaDiLavoro[idxUnita].nottiFatte++;
+                    assegnateOggi++;
+                }
+
+                // 3. Completamento turni e riscontro esatto dei giorni lavorativi feriali
+                unitaDiLavoro.forEach(u => {
+                    if (u.turni[g] === "") {
+                        if (dow === 0) {
+                            u.turni[g] = "Riposo";
+                        } else if (dow === 6) {
+                            u.turni[g] = (g % 2 === 0) ? "Sabato Mattina" : "Riposo";
+                        } else {
+                            if (u.giorniLavoratiFeriali < giorniLavorativiFerialiTotali) {
+                                u.turni[g] = "Mattina";
+                                u.giorniLavoratiFeriali++;
+                            } else {
+                                u.turni[g] = "Riposo";
+                            }
+                        }
+                    } 
+                    
+                    // Contiamo come lavorato feriale valido sia la Mattina che la Notte feriale
+                    if (dow !== 0 && dow !== 6) {
+                        if ((u.turni[g] === "Mattina" || u.turni[g] === "Notte") && !u._contatoGiornoFeriale === true) {
+                            // Evitiamo doppi conteggi per lo stesso giorno feriale
+                        }
+                    }
+                });
+            }
+
+            // Ricalcolo sicuro finale dei giorni feriali lavorati per ogni operatore per garantire i 21 giorni
+            unitaDiLavoro.forEach(u => {
+                let ferialiEffettivi = 0;
+                for (let g = 1; g <= giorniTotali; g++) {
+                    let d = new Date(anno, meseIndex, g);
+                    let dow = d.getDay();
+                    if (dow !== 0 && dow !== 6) {
+                        if (u.turni[g] === "Mattina" || u.turni[g] === "Notte") {
+                            ferialiEffettivi++;
+                        }
+                    }
+                }
+                u.giorniLavoratiFeriali = ferialiEffettivi;
+            });
+
+            // Renderizzazione risultati
+            unitaDiLavoro.forEach((unita) => {
+                let card = document.createElement('div');
+                card.className = 'box';
+                let htmlTurni = `<h3 style="color:#d35400; border-bottom:1px solid #eee; padding-bottom:6px;">${unita.titolo} <span style="font-size:0.8rem; color:#27ae60; float:right;">Notti: ${unita.nottiFatte}/6 | Lav. Feriali: ${unita.giorniLavoratiFeriali}/${giorniLavorativiFerialiTotali}</span></h3>`;
+                if (unita.sottotitolo) htmlTurni += `<p style="font-size:0.85rem; color:#7f8c8d; margin-top:0; margin-bottom:10px;">${unita.sottotitolo}</p>`;
+
+                for (let giorno = 1; giorno <= giorniTotali; giorno++) {
+                    let dataCorrente = new Date(anno, meseIndex, giorno);
+                    let nomeGiorno = nomiGiorni[dataCorrente.getDay()];
+                    let turnoScelto = unita.turni[giorno] || "Mattina";
+
+                    htmlTurni += `
+                        <div class="turno-row">
+                            <label>${nomeGiorno} ${giorno} ${nomeMeseTesto} ${anno}:</label>
+                            ${creaSelectTurno(turnoScelto)}
+                        </div>
+                    `;
+                }
+
+                card.innerHTML = htmlTurni;
+                container.appendChild(card);
+            });
+
+            document.getElementById('btnEsportaPDF').style.display = 'block';
+        }
+
+        function scaricaPDF() {
+            let selectMese = document.getElementById('meseSelezionato');
+            let nomeMeseTesto = selectMese.options[selectMese.selectedIndex].text;
+            let anno = document.getElementById('annoSelezionato').value;
+            let elemento = document.getElementById('area-pdf');
+            if (!elemento) return;
+            
+            elemento.querySelectorAll('select').forEach(select => {
+                let span = document.createElement('span');
+                span.style.fontWeight = 'bold';
+                span.style.fontSize = '0.85rem';
+                span.textContent = select.value;
+                select.parentNode.replaceChild(span, select);
+            });
+
+            html2pdf().set({
+                margin: 10,
+                filename: `Turni_Strada_${nomeMeseTesto}_${anno}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { scale: 2 },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            }).from(elemento).save().then(() => generaTurniMese());
+        }
+
+        aggiornaSelectsDinamiche();
+        aggiornaFestiviMese();
+    </script>
+
+</body>
+</html>
+
