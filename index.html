@@ -36,6 +36,7 @@ button:active{transform:none}
 .cta,.btn-pdf{padding:17px;font-size:1.08rem;border-radius:16px}
 .cta{color:var(--ink);background:var(--amb);box-shadow:0 10px 24px rgba(255,176,32,.38)}
 .btn-pdf{background:var(--ink);color:#fff;box-shadow:0 10px 24px rgba(20,24,33,.22)}
+#btnEsportaPDF[style*="block"]+#btnEsportaPDF2{display:block!important}
 .corsia{border-top:2px dashed #cfd5de;margin:6px 4px 20px}
 #listaDipendentiInput{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:12px}
 .employee-row{display:flex;gap:6px}.employee-row input{margin:0}
@@ -93,6 +94,7 @@ select[data-t="Ferie"]{background:#dcf5e7;color:#116a3c}
 
 <section class="box" style="--ac:#17804a">
   <h3>Coppie e squadre fisse</h3>
+  <p class="vuoto">Una squadra ha sempre gli stessi turni. Due squadre diverse non fanno mai la stessa notte; una squadra può affiancarsi a operatori singoli.</p>
   <div id="listaSquadreCreate"><p class="vuoto">Nessuna squadra creata.</p></div>
   <input type="text" id="nomeSquadra" placeholder="Nome squadra">
   <label for="selezionaMembriSquadra">Membri (tieni premuto per sceglierne più di uno)</label>
@@ -135,7 +137,7 @@ select[data-t="Ferie"]{background:#dcf5e7;color:#116a3c}
   <p class="sedeh">Staffetta (0 notti coperte è ammesso, 1 solo operatore no)</p>
   <div class="g4">
     <div><label for="stMin">Minimo a notte</label><input type="number" id="stMin" value="2" min="0"></div>
-    <div><label for="stMax">Massimo a notte</label><input type="number" id="stMax" value="2" min="0"></div>
+    <div><label for="stMax">Massimo a notte</label><input type="number" id="stMax" value="3" min="0"></div>
     <div><label for="stNotti">Notti al mese a testa</label><input type="number" id="stNotti" value="6" min="1" max="15"></div>
     <div><label for="stDom">Domeniche di notte minime</label><input type="number" id="stDom" value="1" min="0" max="5"></div>
   </div>
@@ -144,7 +146,8 @@ select[data-t="Ferie"]{background:#dcf5e7;color:#116a3c}
 <div class="corsia"></div>
 <div class="actions">
   <button class="cta" onclick="generaTurniMese()">Genera i turni del mese</button>
-  <button id="btnEsportaPDF" onclick="scaricaPDF()" class="btn-pdf" style="display:none">Scarica il PDF (una pagina per operatore)</button>
+  <button id="btnEsportaPDF" onclick="scaricaPDFTabella()" class="btn-pdf" style="display:none">Scarica il PDF (tabella unica del mese)</button>
+  <button id="btnEsportaPDF2" onclick="scaricaPDF()" class="btn-pdf" style="display:none;background:#475467">Scarica il PDF (una pagina per operatore)</button>
 </div>
 
 <div id="area-pdf"></div>
@@ -160,7 +163,7 @@ select[data-t="Ferie"]{background:#dcf5e7;color:#116a3c}
 <script>
 const nomiGiorni=["Domenica","Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato"];
 const nomiMesi=["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
-const nomiIniziali=["NOCERINO","FIUME","VICEDOMINI","RUSSO E.","ESPOSITO D.","TROMBETTA","SEMONELLA","DE LELLA","PICCIRILLO","LOMBARDO","ESPOSITO G.","TAVOLOZZA","SECONDULFO","PICALE","MILO","GAS","COSTABILE L.","DELLA VOLPE","PENNACCHIO","GUARRACINO","PICCOLO","DE CICCO","MARZANO"];
+const nomiIniziali=["NOCERINO","FIUME","VICEDOMINI","RUSSO E.","ESPOSITO D.","TROMBETTA","SEMONELLA","DE LELLA","PICCIRILLO","LOMBARDO","ESPOSITO G.","MILO","GAS","PICALE","SECONDULFO","TAVOLOZZA","COSTABILE L.","DELLA VOLPE","PENNACCHIO","GUARRACINO","PICCOLO","DE CICCO","MARZANO"];
 
 const festiviFissi={
  "0":[{g:1,nome:"Capodanno"},{g:6,nome:"Epifania"}],
@@ -216,7 +219,7 @@ function importaStorico(inp){
 }
 
 // Salvataggio automatico di tutto (operatori, squadre, regole, turni generati e modifiche manuali)
-const CHIAVE_STATO='statoTurniV1';
+const CHIAVE_STATO='statoTurniV2';
 let _tSalva=null;
 function salvaTutto(){
   try{
@@ -224,7 +227,7 @@ function salvaTutto(){
     area.querySelectorAll('select').forEach(s=>{[...s.options].forEach(o=>{if(o.value===s.value)o.setAttribute('selected','');else o.removeAttribute('selected');});});
     let campi={};
     ['sgMin','sgMax','sgNotti','sgDom','stMin','stMax','stNotti','stDom','meseSelezionato','annoSelezionato'].forEach(id=>{campi[id]=document.getElementById(id).value;});
-    localStorage.setItem(CHIAVE_STATO,JSON.stringify({dip:raccogliDipendenti(),squadre:squadreData,incomp:incompData,manuali:manualiData,staffetta:[...staffetta],campi,area:area.innerHTML,key:area.dataset.key||'',pdf:document.getElementById('btnEsportaPDF').style.display}));
+    localStorage.setItem(CHIAVE_STATO,JSON.stringify({v4:1,dip:raccogliDipendenti(),squadre:squadreData,incomp:incompData,manuali:manualiData,staffetta:[...staffetta],campi,area:area.innerHTML,key:area.dataset.key||'',pdf:document.getElementById('btnEsportaPDF').style.display}));
   }catch(e){}
 }
 function programmaSalvataggio(){clearTimeout(_tSalva);_tSalva=setTimeout(salvaTutto,300);}
@@ -237,6 +240,13 @@ function init(){
   for(let y=2024;y<=2060;y++)a.innerHTML+=`<option value="${y}">${y}</option>`;
   let oggi=new Date(); m.value=oggi.getMonth(); a.value=Math.min(2060,Math.max(2024,oggi.getFullYear()));
   let st=caricaStato();
+  if(st&&!st.v4&&Array.isArray(st.dip)){
+    // PICALE, SECONDULFO, TAVOLOZZA vanno subito dopo GAS
+    const tre=["PICALE","SECONDULFO","TAVOLOZZA"];
+    st.dip=st.dip.filter(n=>!tre.includes(n));
+    let i=st.dip.indexOf("GAS");
+    if(i<0)st.dip.push(...tre);else st.dip.splice(i+1,0,...tre);
+  }
   if(st){squadreData=st.squadre||[];incompData=st.incomp||[];manualiData=st.manuali||[];if(Array.isArray(st.staffetta))staffetta=new Set(st.staffetta);}
   (st&&Array.isArray(st.dip)?st.dip:nomiIniziali).forEach(n=>creaRigaDipendente(n));
   aggiornaSelectsDinamiche();
@@ -300,11 +310,27 @@ function disegnaListe(){
     :'<p class="vuoto">Nessuna assegnazione manuale inserita.</p>';
 }
 
+function numCampo(id,d){let v=parseInt(document.getElementById(id).value,10);return isNaN(v)?d:v;}
+const sedeSquadra=mem=>mem.some(m=>staffetta.has(m))?'st':'sg';
+// Massimo di squadre per sede: ogni squadra occupa le sue notti in esclusiva (nessun'altra squadra può farle)
+function maxSquadreSede(anno,mese,nt,domMin){
+  let N=getGiorniNelMese(anno,mese),dom=0;
+  for(let g=1;g<=N;g++)if(new Date(anno,mese,g).getDay()===0)dom++;
+  let c=Math.floor(N/(nt*1.5));
+  if(domMin>0)c=Math.min(c,Math.floor(dom/domMin));
+  return Math.max(1,c);
+}
 function aggiungiSquadra(){
   let n=document.getElementById('nomeSquadra').value.trim();
   let mem=[...document.getElementById('selezionaMembriSquadra').selectedOptions].map(o=>o.value);
   if(!n)return alert("Inserisci un nome squadra!");
   if(!mem.length)return alert("Seleziona almeno un membro!");
+  let inT=mem.filter(m=>staffetta.has(m)).length;
+  if(inT>0&&inT<mem.length)return alert("I membri di una squadra devono essere tutti della stessa sede (San Giovanni oppure Staffetta).");
+  let sede=sedeSquadra(mem),mm=Number(document.getElementById('meseSelezionato').value),aa=Number(document.getElementById('annoSelezionato').value);
+  let cap=maxSquadreSede(aa,mm,numCampo(sede+'Notti',6),numCampo(sede+'Dom',2));
+  let gia=squadreData.filter(q=>sedeSquadra(q.membri)===sede).length;
+  if(gia>=cap)return alert("Massimo "+cap+" squadre per "+(sede==='st'?'Staffetta':'San Giovanni')+" con queste regole: ogni squadra occupa le sue notti in esclusiva e altrimenti qualcuno non riuscirebbe a fare tutte le notti. Elimina una squadra per aggiungerne un'altra.");
   squadreData.push({nome:n,membri:mem});
   document.getElementById('nomeSquadra').value=''; disegnaListe();
 }
@@ -343,7 +369,7 @@ function motoreTurni(o){
   const B=NT+1; // max feriali "persi" tra notti feriali e smonti feriali per poter arrivare al target
   let unita=[],imp=new Set();
   const nuova=(titolo,membri)=>({titolo,membri,turni:Array(N+2).fill("")});
-  o.squadre.forEach(s=>{s.membri.forEach(m=>imp.add(m));unita.push(nuova(s.nome,s.membri));});
+  o.squadre.forEach(s=>{s.membri.forEach(m=>imp.add(m));let un=nuova(s.nome,s.membri);un.isSq=true;unita.push(un);});
   o.dipendenti.forEach(d=>{if(!imp.has(d))unita.push(nuova(d,[d]));});
   const cover=Array(N+2).fill(0);
   o.manuali.forEach(man=>unita.forEach(u=>{
@@ -355,11 +381,15 @@ function motoreTurni(o){
     u.B=B;
     if(u.membri.some(m=>carry.includes(m))&&u.turni[1]===""){u.turni[1]="Riposo";u.carryFlag=true;if(fer(1))u.B=B-1;}
   });
-  const confl=(u,g)=>o.incomp.some(c=>{
-    let a=u.membri.includes(c.op1),b=u.membri.includes(c.op2);
-    if(a&&b)return true;
-    return unita.some(v=>v!==u&&v.turni[g]==="Notte"&&((a&&v.membri.includes(c.op2))||(b&&v.membri.includes(c.op1))));
-  });
+  const confl=(u,g)=>{
+    // due squadre diverse non fanno mai la stessa notte
+    if(u.isSq&&unita.some(v=>v!==u&&v.isSq&&v.turni[g]==="Notte"))return true;
+    return o.incomp.some(c=>{
+      let a=u.membri.includes(c.op1),b=u.membri.includes(c.op2);
+      if(a&&b)return true;
+      return unita.some(v=>v!==u&&v.turni[g]==="Notte"&&((a&&v.membri.includes(c.op2))||(b&&v.membri.includes(c.op1))));
+    });
+  };
   const costo=S=>{let set=new Set(S),c=0;S.forEach(g=>{if(fer(g))c++;let h=g+1;if(h<=N&&!set.has(h)&&fer(h))c++;});return c;};
   let tutti=[],domeniche=[];
   for(let g=1;g<=N;g++){tutti.push(g);if(dow(g)===0)domeniche.push(g);}
@@ -490,6 +520,38 @@ function motoreTurni(o){
     best.u.S=best.u.S.filter(x=>x!==best.r).concat(best.g);commit(best.u);
   }
 
+  // Riparazione finale: nessuna notte con un solo operatore. Sposto una notte da un giorno con operatori in più
+  // (accettando al massimo 1 giorno lavorato in più o in meno rispetto al target) verso un giorno sotto il minimo.
+  const fl=sd=>Math.max(L[sd][0],2); // mai una notte con un solo operatore
+  const scoperto=(sd,c)=>c<fl(sd)&&!(sd==='T'&&c===0);
+  let fase=0;
+  for(let it=0;it<800;it++){
+    let g0=null,sd0=null,w=1e9;
+    ['S','T'].forEach(sd=>{for(let g=1;g<=N;g++)if(scoperto(sd,cov[sd][g])&&cov[sd][g]<w){w=cov[sd][g];g0=g;sd0=sd;}});
+    if(g0===null)break;
+    let best=null;
+    unita.forEach(u=>{
+      let k=u.k[sd0];if(!k||u.S.includes(g0)||u.turni[g0]!=="")return;
+      let p0=Math.abs(target-prospect(u,u.S));
+      u.S.filter(r=>!u.man.has(r)).forEach(r=>{
+        let ok2=['S','T'].every(sd=>{let kk=u.k[sd];if(!kk)return true;let nc=cov[sd][r]-kk;return nc>=fl(sd)||(sd==='T'&&nc===0);});
+        if(!ok2)return;
+        let T=u.S.filter(x=>x!==r);
+        if(T.includes(g0-1)||T.includes(g0+1)||confl(u,g0))return;
+        T.push(g0);
+        if(fase<2&&nDomU(T)<DOM_MIN)return;
+        let dv=Math.abs(target-prospect(u,T));
+        if(dv>p0+(fase>=1?2:1))return;
+        let sc=dv*10-cov[sd0][r]*0.1;
+        if(!best||sc<best.sc)best={u,r,sc};
+      });
+    });
+    if(!best){if(fase<2){fase++;continue;}break;}
+    fase=0;
+    ['S','T'].forEach(sd=>{let k=best.u.k[sd];cov[sd][best.r]-=k;cov[sd][g0]+=k;});
+    best.u.S=best.u.S.filter(x=>x!==best.r).concat(g0);commit(best.u);
+  }
+
   const satMat=Array(N+2).fill(0);
   unita.forEach((u,ui)=>{
     const lav=()=>u.turni.filter(t=>t==="Notte"||t==="Mattina"||t==="Sabato Mattina").length;
@@ -534,6 +596,8 @@ function generaTurniMese(){
   sedi.forEach(sd=>{
     if(!sd.membri.length)return;
     let lim=[num(sd.id+'Min',0),num(sd.id+'Max',99)],nt=num(sd.id+'Notti',6);
+    let capSq=maxSquadreSede(anno,mese,nt,num(sd.id+'Dom',2)),nSq=squadreData.filter(q=>q.membri.every(m=>sd.membri.includes(m))).length;
+    if(nSq>capSq)area.insertAdjacentHTML('beforeend',`<p class="msg warn">${sd.nome}: ci sono ${nSq} squadre ma con queste regole il massimo è ${capSq}. Alcune squadre potrebbero non fare tutte le notti: elimina una squadra o riduci le notti o le domeniche minime.</p>`);
     let r=motoreTurni({anno,mese,dipendenti:sd.membri,
       squadre:squadreData.filter(s=>s.membri.every(m=>sd.membri.includes(m))),
       incomp:incompData.filter(c=>sd.membri.includes(c.op1)&&sd.membri.includes(c.op2)),
@@ -562,52 +626,128 @@ function generaTurniMese(){
   salvaStorico();
 }
 
+// ---- PDF: disegnati direttamente su canvas (nessuna dipendenza dalla larghezza dello schermo) ----
+const COL_TURNO={"Notte":["N","#70ad47"],"Mattina":["M","#ffffff"],"Riposo":["R","#2f75b5"],"Festa":["","#e0443a"],"Sabato Mattina":["M","#ffff00"],"Ferie":["F","#ffb347"]};
+function testoAdattato(ctx,t,maxW,px,bold){
+  let f=px;
+  while(f>10){ctx.font=(bold?'bold ':'')+f+'px Arial,Helvetica,sans-serif';if(ctx.measureText(t).width<=maxW)break;f-=1;}
+  return f;
+}
+function creaCanvas(w,h){let c=document.createElement('canvas');c.width=w;c.height=h;let x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,w,h);return [c,x];}
+function pdfDaCanvas(canvases,nomeFile,orient){
+  const opt={margin:8,filename:nomeFile,image:{type:'jpeg',quality:.95},jsPDF:{unit:'mm',format:'a4',orientation:orient}};
+  let w=html2pdf().set(opt).from(canvases[0],'canvas').toPdf();
+  for(let i=1;i<canvases.length;i++){
+    const cv=canvases[i];
+    w=w.get('pdf').then(pdf=>{pdf.addPage();}).from(cv,'canvas').toPdf();
+  }
+  return w.save();
+}
+
+function scaricaPDFTabella(){
+  let m=document.getElementById('meseSelezionato');
+  let nome=m.options[m.selectedIndex].text,anno=document.getElementById('annoSelezionato').value,mm=Number(m.value);
+  let cards=[...document.querySelectorAll('#area-pdf .box[data-membri]')];
+  if(!cards.length)return;
+  let N=new Date(Number(anno),mm+1,0).getDate();
+  let righe=[];
+  cards.forEach(c=>{
+    let t=[...c.querySelectorAll('.turno-row select')].map(x=>x.value);
+    JSON.parse(c.dataset.membri).forEach(n=>righe.push({n,t,sede:c.dataset.sede||''}));
+  });
+  righe.sort((a,b)=>(a.sede==='Staffetta'?0:1)-(b.sede==='Staffetta'?0:1));
+  const abb=["DOM","LUN","MAR","MER","GIO","VEN","SAB"];
+  const W=2400,M=12,nameW=270,top=130,bot=70;
+  const dayW=Math.floor((W-2*M-nameW)/N);
+  const Hmax=Math.floor(W/1.4485)-4;
+  const rowH=Math.max(30,Math.min(64,Math.floor((Hmax-top-bot)/(righe.length+2))));
+  const H=top+(righe.length+2)*rowH+bot;
+  const [cv,x]=creaCanvas(W,H);
+  x.textAlign='center';x.textBaseline='middle';x.fillStyle='#111';
+  x.font='bold 46px Arial,Helvetica,sans-serif';x.fillText(nome.toUpperCase()+' '+anno,W/2,42);
+  x.font='bold 32px Arial,Helvetica,sans-serif';x.fillText('TURNI MANUTENZIONE STRADALE',W/2,94);
+  const X0=M,Y0=top;
+  const cella=(cx,cy,w,h,fill,txt,col,px,bold,align)=>{
+    x.fillStyle=fill;x.fillRect(cx,cy,w,h);
+    x.strokeStyle='#333';x.lineWidth=2;x.strokeRect(cx,cy,w,h);
+    if(txt!==''){x.fillStyle=col;x.textAlign=align||'center';
+      let f=testoAdattato(x,txt,w-12,px,bold);x.font=(bold?'bold ':'')+f+'px Arial,Helvetica,sans-serif';
+      x.fillText(txt,align==='left'?cx+8:cx+w/2,cy+h/2+1);}
+  };
+  cella(X0,Y0,nameW,rowH,'#fff','','#000',20,true);
+  cella(X0,Y0+rowH,nameW,rowH,'#fff','','#000',20,true);
+  for(let g=1;g<=N;g++){
+    let cx=X0+nameW+(g-1)*dayW,dw=new Date(Number(anno),mm,g).getDay();
+    cella(cx,Y0,dayW,rowH,'#fff',g+'/'+(mm+1),'#8b1a1a',Math.round(rowH*0.36),true);
+    cella(cx,Y0+rowH,dayW,rowH,dw===0?'#f6d6d3':'#fff',abb[dw],'#111',Math.round(rowH*0.36),false);
+  }
+  let prev=null;
+  righe.forEach((r,i)=>{
+    let cy=Y0+(i+2)*rowH;
+    cella(X0,cy,nameW,rowH,'#fff',r.n,'#000',Math.round(rowH*0.46),true,'left');
+    for(let g=1;g<=N;g++){
+      let c=COL_TURNO[r.t[g-1]]||['','#fff'];
+      cella(X0+nameW+(g-1)*dayW,cy,dayW,rowH,c[1],c[0],'#111',Math.round(rowH*0.5),true);
+    }
+    if(prev!==null&&prev!==r.sede){x.strokeStyle='#000';x.lineWidth=6;x.beginPath();x.moveTo(X0,cy);x.lineTo(X0+nameW+N*dayW,cy);x.stroke();}
+    prev=r.sede;
+  });
+  x.fillStyle='#444';x.textAlign='left';x.font='22px Arial,Helvetica,sans-serif';
+  x.fillText('N = Notte   M = Mattina   R = Riposo (smonto)   F = Ferie   Rosso = Festa / non lavorato   Giallo = Sabato mattina',X0,H-32);
+  pdfDaCanvas([cv],`Turni_Tabella_${nome}_${anno}.pdf`,'landscape');
+}
+
 function scaricaPDF(){
   let m=document.getElementById('meseSelezionato');
   let nome=m.options[m.selectedIndex].text,anno=document.getElementById('annoSelezionato').value;
   let cards=[...document.querySelectorAll('#area-pdf .box')];
   if(!cards.length)return;
-
-  const colori={"Notte":"#d6eaf8","Mattina":"#fef9e7","Riposo":"#eaeded","Festa":"#fadbd8","Sabato Mattina":"#fdebd0","Ferie":"#d5f5e3"};
-
-  // una pagina A4 per ogni operatore/squadra, costruita da zero con larghezza fissa
+  // per ogni sede e giorno, chi è di notte (colonna "In turno con")
+  const notte={};
+  cards.forEach(c=>{
+    if(!c.dataset.membri)return;
+    [...c.querySelectorAll('.turno-row select')].forEach((sel,i)=>{
+      if(sel.value==='Notte'){let k=(c.dataset.sede||'')+'|'+i;(notte[k]=notte[k]||[]).push({c,m:JSON.parse(c.dataset.membri)});}
+    });
+  });
+  const W=1500,H=Math.floor(W*277/190)-4,M=40;
   const pagine=cards.map(card=>{
     let h=card.querySelector('h3');
     let stats=h.querySelector('span')?h.querySelector('span').textContent:'';
     let titolo=[...h.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join('').trim();
     let p=card.querySelector(':scope > p');
     let membri=p?p.textContent:'';
-    let righe=[...card.querySelectorAll('.turno-row')].map(r=>{
+    let righe=[...card.querySelectorAll('.turno-row')].map((r,i)=>{
       let giorno=r.querySelector('label').textContent.replace(/:$/,'');
-      let turno=r.querySelector('select').value;
-      return `<tr style="background:${colori[turno]||'#fff'}"><td style="border:1px solid #ccc;padding:0 8px;height:22px;font-size:12px">${giorno}</td><td style="border:1px solid #ccc;padding:0 8px;height:22px;font-size:12px;font-weight:bold;width:150px">${turno}</td></tr>`;
-    }).join('');
-    let div=document.createElement('div');
-    div.style.cssText='width:720px;background:#fff;font-family:Arial,Helvetica,sans-serif;color:#222;';
-    div.innerHTML=
-      `<div style="font-size:13px;color:#555;text-align:center;margin-bottom:6px">Programma Turni Manutenzione Stradale - ${nome} ${anno}${card.dataset.sede?' · '+card.dataset.sede:''}</div>`
-      +`<div style="font-size:18px;font-weight:bold;color:#d35400;border-bottom:2px solid #f39c12;padding-bottom:4px">${titolo}</div>`
-      +`<div style="font-size:12px;color:#27ae60;margin:4px 0">${stats}</div>`
-      +(membri?`<div style="font-size:12px;color:#7f8c8d;margin-bottom:4px">${membri}</div>`:'')
-      +`<table style="width:100%;border-collapse:collapse;margin-top:6px">${righe}</table>`;
-    return div;
+      let turno=r.querySelector('select').value,con='';
+      if(turno==='Notte')con=(notte[(card.dataset.sede||'')+'|'+i]||[]).filter(q=>q.c!==card).map(q=>q.m.join(' + ')).join(', ');
+      return {giorno,turno,con};
+    });
+    const [cv,x]=creaCanvas(W,H);
+    x.textBaseline='middle';x.textAlign='center';x.fillStyle='#555';
+    x.font='24px Arial,Helvetica,sans-serif';
+    x.fillText('Programma Turni Manutenzione Stradale - '+nome+' '+anno+(card.dataset.sede?' · '+card.dataset.sede:''),W/2,40);
+    x.textAlign='left';x.fillStyle='#d35400';x.font='bold 44px Arial,Helvetica,sans-serif';x.fillText(titolo,M,100);
+    x.fillStyle='#f39c12';x.fillRect(M,128,W-2*M,4);
+    x.fillStyle='#27ae60';x.font='24px Arial,Helvetica,sans-serif';x.fillText(stats,M,162);
+    let y=190;
+    if(membri){x.fillStyle='#7f8c8d';x.font='22px Arial,Helvetica,sans-serif';x.fillText(membri,M,y+10);y+=34;}
+    let rh=Math.max(30,Math.min(56,Math.floor((H-y-M)/(righe.length+1))));
+    const c1=M,w1=420,w2=240,w3=W-2*M-w1-w2;
+    const cella=(cx,cy,w,hh,fill,txt,col,px,bold)=>{
+      x.fillStyle=fill;x.fillRect(cx,cy,w,hh);x.strokeStyle='#aaa';x.lineWidth=2;x.strokeRect(cx,cy,w,hh);
+      if(txt){x.fillStyle=col;x.textAlign='left';let f=testoAdattato(x,txt,w-20,px,bold);x.font=(bold?'bold ':'')+f+'px Arial,Helvetica,sans-serif';x.fillText(txt,cx+10,cy+hh/2+1);}
+    };
+    cella(c1,y,w1,rh,'#f2f3f4','Giorno','#111',26,true);cella(c1+w1,y,w2,rh,'#f2f3f4','Turno','#111',26,true);cella(c1+w1+w2,y,w3,rh,'#f2f3f4','In turno con (notte)','#111',26,true);
+    righe.forEach((r,i)=>{
+      let cy=y+(i+1)*rh,bg={"Notte":"#d6eaf8","Mattina":"#fef9e7","Riposo":"#eaeded","Festa":"#fadbd8","Sabato Mattina":"#fdebd0","Ferie":"#d5f5e3"}[r.turno]||'#fff';
+      cella(c1,cy,w1,rh,bg,r.giorno,'#222',Math.round(rh*0.5),false);
+      cella(c1+w1,cy,w2,rh,bg,r.turno,'#222',Math.round(rh*0.5),true);
+      cella(c1+w1+w2,cy,w3,rh,bg,r.con,'#222',Math.round(rh*0.46),false);
+    });
+    return cv;
   });
-
-  const opt={
-    margin:10,
-    filename:`Turni_Strada_${nome}_${anno}.pdf`,
-    image:{type:'jpeg',quality:.95},
-    html2canvas:{scale:2,scrollX:0,scrollY:0},
-    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
-    pagebreak:{mode:['css']}
-  };
-
-  // aggiungo una pagina nuova per ogni scheda
-  let worker=html2pdf().set(opt).from(pagine[0]).toPdf();
-  for(let i=1;i<pagine.length;i++){
-    worker=worker.get('pdf').then(pdf=>{pdf.addPage();}).from(pagine[i]).toContainer().toCanvas().toPdf();
-  }
-  worker.save();
+  pdfDaCanvas(pagine,`Turni_Strada_${nome}_${anno}.pdf`,'portrait');
 }
 
 init();
