@@ -182,7 +182,16 @@ select[data-t="Escluso"]{background:#d9dde4;color:#374151}
 
 <div id="area-pdf"></div>
 
-<section class="box" style="--ac:#566170;margin-top:24px">
+<details class="box" style="--ac:#c62222;margin-top:24px" ontoggle="aggiornaListaReset()">
+  <summary>Resetta un mese specifico</summary>
+  <p style="margin-top:0">Se hai generato un mese per sbaglio, sceglilo qui e resettalo: i suoi turni e i suoi festivi a rotazione vengono tolti dallo storico, così i mesi successivi non ne tengono più conto. Gli altri mesi non vengono toccati.</p>
+  <label for="meseDaResettare">Mesi generati</label>
+  <select id="meseDaResettare" onchange="ripristinaBtnReset()"></select>
+  <button id="btnReset" onclick="resetMese()" style="background:#d92d20">Resetta questo mese</button>
+  <p id="esitoReset" class="msg ok" style="display:none;margin:12px 0 0"></p>
+</details>
+
+<section class="box" style="--ac:#566170">
   <h3>Backup dello storico</h3>
   <p style="margin-top:0">Lo storico dei mesi generati (compresa la rotazione dei festivi) resta su questo dispositivo. Salva ogni tanto un backup su file: se cambi PC o browser lo ricarichi da qui.</p>
   <div class="row"><button onclick="esportaStorico()">Salva backup</button><button onclick="document.getElementById('fileStorico').click()">Carica backup</button></div>
@@ -283,7 +292,7 @@ function init(){
   (st&&Array.isArray(st.dip)?st.dip:nomiIniziali).forEach(n=>creaRigaDipendente(n,fissiSet.has(n)));
   aggiornaSelectsDinamiche();
   if(st&&st.campi)Object.keys(st.campi).forEach(id=>{let e=document.getElementById(id);if(e)e.value=st.campi[id];});
-  impostaOggi();disegnaListe();
+  impostaOggi();disegnaListe();aggiornaListaReset();
   if(st&&st.area){let ar=document.getElementById('area-pdf');ar.innerHTML=st.area;ar.dataset.key=st.key||'';if(st.pdf)document.getElementById('btnEsportaPDF').style.display=st.pdf;}
   ['input','change','click'].forEach(ev=>document.addEventListener(ev,programmaSalvataggio));
   window.addEventListener('pagehide',salvaTutto);
@@ -822,6 +831,7 @@ function generaTurniMese(){
   if(fm.length)area.insertAdjacentHTML('beforeend',`<p class="msg ok">🎄 Festivi di notte a rotazione: ${fm.map(f=>`${f.nome} ${f.g} → ${festRec[f.g].join(', ')}`).join(' · ')}</p>`);
   document.getElementById('btnEsportaPDF').style.display='block';
   salvaStorico();
+  aggiornaListaReset();
 }
 
 // ---- PDF: disegnati direttamente su canvas (nessuna dipendenza dalla larghezza dello schermo) ----
@@ -946,6 +956,43 @@ function scaricaPDF(blob){
     return cv;
   });
   return pdfDaCanvas(pagine,`Turni_Strada_${nome}_${anno}.pdf`,'portrait',blob);
+}
+
+// ---- Reset di un mese: lo toglie dallo storico (continuità notti e rotazione festivi) ----
+function aggiornaListaReset(){
+  let ks=new Set(Object.keys(storico).filter(k=>k!=='festivi'));
+  Object.keys(storico.festivi||{}).forEach(k=>ks.add(k));
+  let arr=[...ks].filter(k=>/^\d+-\d+$/.test(k)).sort((a,b)=>{let x=a.split('-'),y=b.split('-');return (x[0]*12+ +x[1])-(y[0]*12+ +y[1]);});
+  document.getElementById('meseDaResettare').innerHTML=arr.length
+    ?arr.map(k=>{let t=k.split('-');return `<option value="${k}">${nomiMesi[t[1]]} ${t[0]}</option>`;}).join('')
+    :'<option value="">Nessun mese generato</option>';
+}
+let _confReset=null,_tConf=null;
+function ripristinaBtnReset(){_confReset=null;clearTimeout(_tConf);document.getElementById('btnReset').textContent='Resetta questo mese';}
+function esitoReset(tipo,testo){let e=document.getElementById('esitoReset');e.className='msg '+tipo;e.textContent=testo;e.style.display='block';}
+function resetMese(){
+  let k=document.getElementById('meseDaResettare').value;
+  if(!k)return esitoReset('warn',"Non c'è nessun mese da resettare.");
+  let t=k.split('-'),nm=nomiMesi[Number(t[1])]+' '+t[0];
+  // doppio tocco al posto della finestra di conferma (che alcuni browser bloccano)
+  if(_confReset!==k){
+    _confReset=k;clearTimeout(_tConf);
+    document.getElementById('btnReset').textContent='Tocca di nuovo per confermare: '+nm;
+    esitoReset('warn','Tocca di nuovo il tasto rosso entro 6 secondi per resettare '+nm+'.');
+    _tConf=setTimeout(ripristinaBtnReset,6000);
+    return;
+  }
+  ripristinaBtnReset();
+  delete storico[k];
+  if(storico.festivi)delete storico.festivi[k];
+  try{localStorage.setItem(CHIAVE_STORICO,JSON.stringify(storico));}catch(e){}
+  let area=document.getElementById('area-pdf');
+  if(area.dataset.key===k){
+    area.innerHTML='';delete area.dataset.key;_pronti=null;
+    document.getElementById('btnEsportaPDF').style.display='none';
+  }
+  aggiornaListaReset();programmaSalvataggio();
+  esitoReset('ok',nm+' resettato: i mesi successivi non ne terranno più conto.');
 }
 
 // ---- Condividi i due PDF (menu di condivisione del telefono: si sceglie WhatsApp e poi la chat) ----
