@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="it">
 <head>
@@ -358,7 +357,7 @@
                     htmlTurni += `<p style="font-size:0.85rem; color:#7f8c8d; margin-top:0; margin-bottom:10px;">${unita.sottotitolo}</p>`;
                 }
 
-                // Almeno 2 domeniche di notte
+                // 1. Almeno 2 domeniche di notte
                 let domNotteSet = new Set();
                 if (domeniche.length >= 2) {
                     let idx1 = indexD % domeniche.length;
@@ -370,10 +369,10 @@
                     domNotteSet.add(domeniche[0]);
                 }
 
-                // 1 sabato di notte
+                // 2. 1 sabato di notte
                 let sabNotte = sabati.length > 0 ? sabati[indexD % sabati.length] : -1;
 
-                // Altre 3 notti feriali per arrivare a 6 notti totali nel mese
+                // 3. Altre 4 notti feriali per arrivare esattamente a 6 notti totali nel mese (2 dom + 1 sab + 4 feriali = 6)
                 let nottiFerialiAssegnate = new Set();
                 let giorniFerialiDisponibili = [];
                 for (let g = 1; g <= giorniTotali; g++) {
@@ -384,9 +383,9 @@
                     }
                 }
 
-                let nFerialiDaFare = 3;
+                let nFerialiDaFare = 4;
                 for (let i = 0; i < nFerialiDaFare && giorniFerialiDisponibili.length > 0; i++) {
-                    let pos = (indexD * 5 + i * 7) % giorniFerialiDisponibili.length;
+                    let pos = (indexD * 5 + i * 6) % giorniFerialiDisponibili.length;
                     let giornoScelto = giorniFerialiDisponibili.splice(pos, 1)[0];
                     nottiFerialiAssegnate.add(giornoScelto);
                 }
