@@ -103,6 +103,22 @@ const festiviFissi={
 // Dati in memoria
 let squadreData=[], incompData=[], manualiData=[];
 
+// Storico dei turni generati (ultimo giorno di ogni mese), per la continuità tra un mese e l'altro
+const CHIAVE_STORICO='storicoTurniV1';
+let storico={};
+try{storico=JSON.parse(localStorage.getItem(CHIAVE_STORICO)||'{}');}catch(e){}
+function salvaStorico(){
+  let area=document.getElementById('area-pdf'),k=area.dataset.key;
+  if(!k)return;
+  let rec={};
+  area.querySelectorAll('.box[data-membri]').forEach(card=>{
+    let sel=card.querySelectorAll('select'),ultimo=sel.length?sel[sel.length-1].value:'';
+    JSON.parse(card.dataset.membri).forEach(m=>{rec[m]=ultimo;});
+  });
+  storico[k]=rec;
+  try{localStorage.setItem(CHIAVE_STORICO,JSON.stringify(storico));}catch(e){}
+}
+
 function init(){
   let m=document.getElementById('meseSelezionato'), a=document.getElementById('annoSelezionato');
   nomiMesi.forEach((n,i)=>m.innerHTML+=`<option value="${i}">${n}</option>`);
@@ -110,6 +126,7 @@ function init(){
   let oggi=new Date(); m.value=oggi.getMonth(); a.value=Math.min(2060,Math.max(2024,oggi.getFullYear()));
   nomiIniziali.forEach(n=>creaRigaDipendente(n));
   aggiornaSelectsDinamiche(); aggiornaFestiviMese();
+  document.getElementById('area-pdf').addEventListener('change',salvaStorico);
 }
 
 function creaRigaDipendente(nome){
@@ -194,7 +211,7 @@ function getGiorniNelMese(anno,mese){return new Date(anno,Number(mese)+1,0).getD
 
 // Motore: 6 notti (>=2 di domenica), giorni lavorati = notti + mattine (il riposo dopo la notte NON conta),
 // domenica solo notti, un solo sabato mattina, weekend non lavorato = Festa,
-// riposo feriale solo dopo una notte.
+// riposo feriale solo dopo una notte, continuità col mese precedente.
 function motoreTurni(o){
   const NT=6,DOM_MIN=2,W=1,WR=1,MINC=3,BON=4,MINL=2;
   const N=getGiorniNelMese(o.anno,o.mese);
@@ -210,6 +227,12 @@ function motoreTurni(o){
   o.manuali.forEach(man=>unita.forEach(u=>{
     if(u.membri.includes(man.op)&&man.giorno>=1&&man.giorno<=N){u.turni[man.giorno]=man.turno;if(man.turno==="Notte")cover[man.giorno]++;}
   }));
+  // Continuità col mese precedente: chi ha fatto notte l'ultimo giorno ha lo smonto (Riposo) il giorno 1
+  const carry=o.carry||[];
+  unita.forEach(u=>{
+    u.B=B;
+    if(u.membri.some(m=>carry.includes(m))&&u.turni[1]===""){u.turni[1]="Riposo";u.carryFlag=true;if(fer(1))u.B=B-1;}
+  });
   const confl=(u,g)=>o.incomp.some(c=>{
     let a=u.membri.includes(c.op1),b=u.membri.includes(c.op2);
     if(a&&b)return true;
@@ -234,7 +257,7 @@ function motoreTurni(o){
     const nDom=T=>T.filter(g=>dow(g)===0).length;
     while(nDom(S)<DOM_MIN&&S.length<NT){let g=scegli(S,domeniche);if(g===null)break;S.push(g);cover[g]++;}
     while(S.length<NT){let g=scegli(S,tutti);if(g===null)break;S.push(g);cover[g]++;}
-    for(let it=0;it<30&&costo(S)>B;it++){
+    for(let it=0;it<30&&costo(S)>u.B;it++){
       let c0=costo(S),mig=null;
       S.filter(g=>!fissi.has(g)&&!(dow(g)===0&&nDom(S)<=DOM_MIN)).forEach(r=>{
         let T=S.filter(x=>x!==r);
@@ -243,7 +266,7 @@ function motoreTurni(o){
       if(!mig)break;
       S=S.filter(x=>x!==mig.r).concat(mig.g);cover[mig.r]--;cover[mig.g]++;
     }
-    u.man=new Set(fissi);u.S=S;commit(u);
+    u.man=new Set(fissi);if(u.carryFlag)u.man.add(1);u.S=S;commit(u);
   });
 
   // Copertura minima: sposta notti da giorni affollati a giorni scoperti (se il budget del singolo lo permette)
@@ -260,7 +283,7 @@ function motoreTurni(o){
         if(T.includes(g0-1)||T.includes(g0+1)||confl(u,g0))return;
         T.push(g0);
         let c=costo(T);
-        if(c>B||nDomU(T)<DOM_MIN)return;
+        if(c>u.B||nDomU(T)<DOM_MIN)return;
         let sc=(c-costo(u.S))*3-cover[r];
         if(!mig||sc<mig.sc)mig={u,r,T,sc};
       });
@@ -269,18 +292,43 @@ function motoreTurni(o){
     cover[mig.r]--;cover[g0]++;mig.u.S=mig.T;commit(mig.u);
   }
 
-  // Nessun riposo feriale libero: per fare esattamente il target le notti vanno posizionate
-  // in modo che il costo sia B; se è minore, sposto notti su giorni più "costosi".
+  // Nessun riposo feriale libero: il riposo c'è solo dopo una notte. Per fare esattamente il target
+  // le notti vanno posizionate in modo che il costo (feriali persi) sia B: se è minore, sposto notti su giorni più "costosi".
   unita.forEach(u=>{
-    for(let it=0;it<12&&costo(u.S)<B;it++){
+    for(let it=0;it<12&&costo(u.S)<u.B;it++){
       let c0=costo(u.S),mig=null;
       u.S.filter(r=>!u.man.has(r)&&cover[r]>MINL&&!(dow(r)===0&&nDomU(u.S)<=DOM_MIN)).forEach(r=>{
         let T=u.S.filter(x=>x!==r);
         tutti.forEach(g=>{
           if(u.turni[g]!==""||T.includes(g)||T.includes(g-1)||T.includes(g+1)||confl(u,g))return;
           let c=costo(T.concat(g));
-          if(c<=c0||c>B)return;
-          let sc=cover[g]-cover[r]*0.01+(B-c)*2;
+          if(c<=c0||c>u.B)return;
+          let sc=cover[g]-cover[r]*0.01+(u.B-c)*2;
+          if(!mig||sc<mig.sc)mig={r,g,sc};
+        });
+      });
+      if(!mig)break;
+      cover[mig.r]--;cover[mig.g]++;u.S=u.S.filter(x=>x!==mig.r).concat(mig.g);commit(u);
+    }
+  });
+
+  // Verifica finale: simulo i giorni lavorati risultanti (compreso il Sabato Mattina possibile) e,
+  // se non coincidono col target, sposto una notte per correggere.
+  const prospect=(u,S)=>{
+    let c=costo(S)+((u.carryFlag&&fer(1))?1:0),p=S.length+target-c;
+    if(p<target){for(let g=1;g<=N;g++)if(dow(g)===6&&!S.includes(g)&&!S.includes(g-1)&&!u.man.has(g)){p++;break;}}
+    return p;
+  };
+  unita.forEach(u=>{
+    for(let it=0;it<12&&prospect(u,u.S)!==target;it++){
+      let d0=Math.abs(target-prospect(u,u.S)),mig=null;
+      u.S.filter(r=>!u.man.has(r)&&!(dow(r)===0&&nDomU(u.S)<=DOM_MIN)).forEach(r=>{
+        let T=u.S.filter(x=>x!==r);
+        tutti.forEach(g=>{
+          if(g===r||(u.turni[g]!==""&&g!==r+1)||T.includes(g)||T.includes(g-1)||T.includes(g+1)||confl(u,g))return;
+          let d=Math.abs(target-prospect(u,T.concat(g)));
+          if(d>=d0)return;
+          let sc=d*10+cover[g]-cover[r]*0.01;
           if(!mig||sc<mig.sc)mig={r,g,sc};
         });
       });
@@ -315,21 +363,29 @@ function generaTurniMese(){
   let area=document.getElementById('area-pdf');
   area.innerHTML=`<h2 style="text-align:center;color:var(--dark);border-bottom:2px solid var(--primary);padding-bottom:10px">Programma Turni Cantieri - ${nome} ${anno}</h2>`;
   if(!dipendenti.length&&!squadreData.length){area.innerHTML+="<p style='color:red;text-align:center'>Aggiungi almeno un operatore!</p>";return;}
-  let r=motoreTurni({anno,mese,dipendenti,squadre:squadreData,incomp:incompData,manuali:manualiData});
+  let pm=mese-1,pa=anno;if(pm<0){pm=11;pa--;}
+  let rec=storico[pa+'-'+pm];
+  let carry=rec?Object.keys(rec).filter(k=>rec[k]==='Notte'):[];
+  let r=motoreTurni({anno,mese,dipendenti,squadre:squadreData,incomp:incompData,manuali:manualiData,carry});
   let dow=g=>new Date(anno,mese,g).getDay();
+  area.dataset.key=anno+'-'+mese;
+  area.innerHTML+=rec
+    ?`<p style="font-size:.85rem;color:#27ae60;text-align:center">✔ Tenuto conto di ${nomiMesi[pm]} ${pa}: ${carry.length} operatori con notte l'ultimo giorno hanno lo smonto il giorno 1.</p>`
+    :`<p style="font-size:.85rem;color:#c0392b;text-align:center">ℹ️ ${nomiMesi[pm]} ${pa} non è stato generato qui: se qualcuno ha fatto notte l'ultimo giorno, genera prima quel mese oppure metti Riposo a mano il giorno 1.</p>`;
   r.unita.forEach(u=>{
     let n=0,d=0,l=0;
     for(let g=1;g<=r.N;g++){let t=u.turni[g];
       if(t==="Notte"){n++;if(dow(g)===0)d++;}
       if(t==="Notte"||t==="Mattina"||t==="Sabato Mattina")l++;}
     let isSq=squadreData.some(s=>s.nome===u.titolo&&s.membri.join()===u.membri.join());
-    let card=document.createElement('div');card.className='box';
+    let card=document.createElement('div');card.className='box';card.dataset.membri=JSON.stringify(u.membri);
     let html=`<h3 style="color:#d35400;border-bottom:1px solid #eee;padding-bottom:6px">${isSq?'👥 Squadra: ':'👤 Operatore: '}${u.titolo} <span style="font-size:.8rem;color:#27ae60;float:right">Notti: ${n}/6 | Dom. notte: ${d} | Giorni lav.: ${l}/${r.target}</span></h3>`;
     if(isSq)html+=`<p style="font-size:.85rem;color:#7f8c8d;margin-top:0;margin-bottom:10px">Membri: ${u.membri.join(', ')}</p>`;
     for(let g=1;g<=r.N;g++)html+=`<div class="turno-row"><label>${nomiGiorni[dow(g)]} ${g} ${nome} ${anno}:</label>${creaSelectTurno(u.turni[g])}</div>`;
     card.innerHTML=html;area.appendChild(card);
   });
   document.getElementById('btnEsportaPDF').style.display='block';
+  salvaStorico();
 }
 
 function scaricaPDF(){
