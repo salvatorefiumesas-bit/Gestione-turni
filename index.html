@@ -155,7 +155,8 @@
 
     <script>
         const nomiGiorni = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
-        const listaOpzioniTurni = ["Mattina", "Notte", "Riposo"];
+        // Aggiunta l'opzione Ferie
+        const listaOpzioniTurni = ["Mattina", "Notte", "Riposo", "Ferie"];
 
         function raccogliDipendenti() {
             let inputs = document.querySelectorAll('#listaDipendentiInput input');
@@ -328,7 +329,6 @@
 
             let giorniTotali = getGiorniNelMese(anno, meseIndex);
 
-            // Trova tutte le domeniche e i sabati del mese
             let domeniche = [];
             let sabati = [];
             for (let g = 1; g <= giorniTotali; g++) {
@@ -345,7 +345,6 @@
                     htmlTurni += `<p style="font-size:0.85rem; color:#7f8c8d; margin-top:0; margin-bottom:10px;">${unita.sottotitolo}</p>`;
                 }
 
-                // Assegnazione fissa e garantita di almeno 2 domeniche di notte
                 let domNotteSet = new Set();
                 if (domeniche.length >= 2) {
                     let idx1 = indexD % domeniche.length;
@@ -357,10 +356,8 @@
                     domNotteSet.add(domeniche[0]);
                 }
 
-                // Assegnazione fissa e garantita di 1 sabato notte
                 let sabNotte = sabati.length > 0 ? sabati[indexD % sabati.length] : -1;
-
-                let eraNotteIeri = false; // Memoria per impedire le notti consecutive
+                let eraNotteIeri = false;
 
                 for (let giorno = 1; giorno <= giorniTotali; giorno++) {
                     let dataCorrente = new Date(anno, meseIndex, giorno);
@@ -368,20 +365,17 @@
                     let nomeGiorno = nomiGiorni[indiceGiornoSettimana];
                     let turnoScelto = "Mattina";
 
-                    // REGINA DELLE REGOLE: Se ieri era notte, oggi DEVE essere riposo (mai 2 notti consecutive)
                     if (eraNotteIeri) {
                         turnoScelto = "Riposo";
-                        eraNotteIeri = false; // Reset dopo il riposo obbligatorio
+                        eraNotteIeri = false; 
                     } 
                     else {
                         if (nomeGiorno === "Sabato") {
                             if (giorno === sabNotte) {
                                 turnoScelto = "Notte";
                                 eraNotteIeri = true;
-                            } else if (giorno % 2 === (indexD % 2)) {
-                                turnoScelto = "Riposo";
                             } else {
-                                turnoScelto = "Mattina";
+                                turnoScelto = (giorno % 2 === (indexD % 2)) ? "Riposo" : "Mattina";
                             }
                         } 
                         else if (nomeGiorno === "Domenica") {
@@ -393,22 +387,17 @@
                             }
                         } 
                         else {
-                            // Giorni feriali: alternanza pulita con turni di notte distanziati
                             let eNotteFeriale = ((giorno + indexD * 3) % 7 === 0);
-                            let eRiposoFeriale = ((giorno + indexD) % 4 === 0);
 
                             if (eNotteFeriale) {
                                 turnoScelto = "Notte";
                                 eraNotteIeri = true;
-                            } else if (eRiposoFeriale) {
-                                turnoScelto = "Riposo";
                             } else {
                                 turnoScelto = "Mattina";
                             }
                         }
                     }
 
-                    // Controllo rigoroso incompatibilità coppie
                     incompatibilita.forEach(inc => {
                         let unitaContiene1 = unita.membri.includes(inc.op1);
                         let unitaContiene2 = unita.membri.includes(inc.op2);
@@ -460,7 +449,6 @@
             });
         }
 
-        // Inizializza i menu a tendina all'avvio
         aggiornaSelectsDinamiche();
     </script>
 
