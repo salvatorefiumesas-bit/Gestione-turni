@@ -155,7 +155,6 @@
 
     <script>
         const nomiGiorni = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
-        // Aggiunta l'opzione Ferie
         const listaOpzioniTurni = ["Mattina", "Notte", "Riposo", "Ferie"];
 
         function raccogliDipendenti() {
@@ -345,6 +344,7 @@
                     htmlTurni += `<p style="font-size:0.85rem; color:#7f8c8d; margin-top:0; margin-bottom:10px;">${unita.sottotitolo}</p>`;
                 }
 
+                // Garantiamo almeno 2 domeniche di notte
                 let domNotteSet = new Set();
                 if (domeniche.length >= 2) {
                     let idx1 = indexD % domeniche.length;
@@ -356,7 +356,28 @@
                     domNotteSet.add(domeniche[0]);
                 }
 
+                // Garantiamo 1 sabato notte
                 let sabNotte = sabati.length > 0 ? sabati[indexD % sabati.length] : -1;
+
+                // Raccogliamo i giorni idonei per le altre 3 notti feriali (totale 6 notti esatte)
+                let nottiFerialiAssegnate = new Set();
+                let giorniFerialiDisponibili = [];
+                for (let g = 1; g <= giorniTotali; g++) {
+                    let d = new Date(anno, meseIndex, g);
+                    let dow = d.getDay();
+                    if (dow !== 0 && dow !== 6) { // Solo lun-ven
+                        giorniFerialiDisponibili.push(g);
+                    }
+                }
+
+                // Selezioniamo 3 giorni feriali per arrivare a 6 notti totali (2 dom + 1 sab + 3 feriali = 6)
+                let nFerialiDaFare = 3;
+                for (let i = 0; i < nFerialiDaFare && giorniFerialiDisponibili.length > 0; i++) {
+                    let pos = (indexD * 5 + i * 7) % giorniFerialiDisponibili.length;
+                    let giornoScelto = giorniFerialiDisponibili.splice(pos, 1)[0];
+                    nottiFerialiAssegnate.add(giornoScelto);
+                }
+
                 let eraNotteIeri = false;
 
                 for (let giorno = 1; giorno <= giorniTotali; giorno++) {
@@ -365,6 +386,7 @@
                     let nomeGiorno = nomiGiorni[indiceGiornoSettimana];
                     let turnoScelto = "Mattina";
 
+                    // Regola smonto notte obbligatorio il giorno dopo
                     if (eraNotteIeri) {
                         turnoScelto = "Riposo";
                         eraNotteIeri = false; 
@@ -387,17 +409,17 @@
                             }
                         } 
                         else {
-                            let eNotteFeriale = ((giorno + indexD * 3) % 7 === 0);
-
-                            if (eNotteFeriale) {
+                            // Giorni feriali: controlliamo se rientra nelle 3 notti feriali programmate
+                            if (nottiFerialiAssegnate.has(giorno)) {
                                 turnoScelto = "Notte";
                                 eraNotteIeri = true;
                             } else {
-                                turnoScelto = "Mattina";
+                                turnoScelto = "Mattina"; // In settimana niente riposi casuali prima di una notte
                             }
                         }
                     }
 
+                    // Incompatibilità coppie
                     incompatibilita.forEach(inc => {
                         let unitaContiene1 = unita.membri.includes(inc.op1);
                         let unitaContiene2 = unita.membri.includes(inc.op2);
