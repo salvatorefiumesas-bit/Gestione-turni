@@ -148,7 +148,7 @@
 
     <script>
         const nomiGiorni = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
-        const listaOpzioniTurni = ["Mattina", "Notte", "Riposo", "Ferie"];
+        const listaOpzioniTurni = ["Mattina", "Notte", "Riposo", "Sabato Mattina", "Ferie"];
 
         function raccogliDipendenti() {
             let inputs = document.querySelectorAll('#listaDipendentiInput input');
@@ -308,14 +308,26 @@
             if (!container) return;
             container.innerHTML = `<h2 style="text-align:center; color:var(--dark); border-bottom: 2px solid var(--primary); padding-bottom: 10px;">Programma Turni Cantieri - ${nomeMeseTesto} ${anno}</h2>`;
 
-            // Costruiamo la lista completa delle entità da pianificare:
-            // 1. Singoli dipendenti che NON fanno parte di nessuna squadra
-            let membriInSquadra = new Set();
-            squadres = squadre.forEach(sq => sq.membri.forEach(m => membriInSquadra.add(m)));
+            // Calcolo giorni lavorativi effettivi del mese (Lunedì - Venerdì)
+            let giorniTotali = getGiorniNelMese(anno, meseIndex);
+            let giorniLavorativiMese = 0;
+            let domeniche = [];
+            let sabati = [];
+            let ferialiDisponibili = [];
+
+            for (let g = 1; g <= giorniTotali; g++) {
+                let d = new Date(anno, meseIndex, g);
+                let dow = d.getDay();
+                if (dow === 0) domeniche.push(g);
+                else if (dow === 6) sabati.push(g);
+                else {
+                    giorniLavorativiMese++;
+                    ferialiDisponibili.push(g);
+                }
+            }
 
             let unitaDiLavoro = [];
             
-            // Aggiungiamo le squadre create
             squadre.forEach(sq => {
                 unitaDiLavoro.push({
                     tipo: 'squadra',
@@ -325,7 +337,6 @@
                 });
             });
 
-            // Aggiungiamo i dipendenti singoli (che non sono in alcuna squadra)
             dipendenti.forEach(d => {
                 let inSq = false;
                 squadre.forEach(sq => {
@@ -348,16 +359,6 @@
                 return;
             }
 
-            let giorniTotali = getGiorniNelMese(anno, meseIndex);
-
-            let domeniche = [];
-            let sabati = [];
-            for (let g = 1; g <= giorniTotali; g++) {
-                let d = new Date(anno, meseIndex, g);
-                if (d.getDay() === 0) domeniche.push(g);
-                if (d.getDay() === 6) sabati.push(g);
-            }
-
             unitaDiLavoro.forEach((unita, indexD) => {
                 let card = document.createElement('div');
                 card.className = 'box';
@@ -366,7 +367,7 @@
                     htmlTurni += `<p style="font-size:0.85rem; color:#7f8c8d; margin-top:0; margin-bottom:10px;">${unita.sottotitolo}</p>`;
                 }
 
-                // Almeno 2 domeniche di notte
+                // 1. Almeno 2 domeniche di notte
                 let domNotteSet = new Set();
                 if (domeniche.length >= 2) {
                     let idx1 = indexD % domeniche.length;
@@ -378,24 +379,25 @@
                     domNotteSet.add(domeniche[0]);
                 }
 
-                // 1 sabato di notte
+                // 2. 1 sabato di notte
                 let sabNotte = sabati.length > 0 ? sabati[indexD % sabati.length] : -1;
 
-                // Altre 4 notti feriali per arrivare esattamente a 6 notti totali
-                let nottiFerialiAssegnate = new Set();
-                let giorniFerialiDisponibili = [];
-                for (let g = 1; g <= giorniTotali; g++) {
-                    let d = new Date(anno, meseIndex, g);
-                    let dow = d.getDay();
-                    if (dow !== 0 && dow !== 6) { 
-                        giorniFerialiDisponibili.push(g);
-                    }
+                // 3. Esattamente 1 sabato mattina
+                let sabatMattinaScelto = -1;
+                let sabatiDisponibiliPerMattina = sabati.filter(s => s !== sabNotte);
+                if (sabatiDisponibiliPerMattina.length > 0) {
+                    sabatMattinaScelto = sabatiDisponibiliPerMattina[indexD % sabatiDisponibiliPerMattina.length];
+                } else if (sabati.length > 0) {
+                    sabatMattinaScelto = sabati[0];
                 }
 
-                let nFerialiDaFare = 4;
-                for (let i = 0; i < nFerialiDaFare && giorniFerialiDisponibili.length > 0; i++) {
-                    let pos = (indexD * 5 + i * 6) % giorniFerialiDisponibili.length;
-                    let giornoScelto = giorniFerialiDisponibili.splice(pos, 1)[0];
+                // 4. Esattamente 6 notti totali al mese: 2 domeniche + 1 sabato + 3 feriali = 6
+                let nottiFerialiAssegnate = new Set();
+                let ferialiDispCopia = [...ferialiDisponibili];
+                let nFerialiDaFare = 3;
+                for (let i = 0; i < nFerialiDaFare && ferialiDispCopia.length > 0; i++) {
+                    let pos = (indexD * 4 + i * 7) % ferialiDispCopia.length;
+                    let giornoScelto = ferialiDispCopia.splice(pos, 1)[0];
                     nottiFerialiAssegnate.add(giornoScelto);
                 }
 
@@ -408,7 +410,7 @@
                     let turnoScelto = "Mattina";
 
                     if (eraNotteIeri) {
-                        turnoScelto = "Riposo";
+                        turnoScelto = "Riposo"; // Smonto notte obbligatorio
                         eraNotteIeri = false; 
                     } 
                     else {
@@ -416,8 +418,10 @@
                             if (giorno === sabNotte) {
                                 turnoScelto = "Notte";
                                 eraNotteIeri = true;
+                            } else if (giorno === sabatMattinaScelto) {
+                                turnoScelto = "Sabato Mattina";
                             } else {
-                                turnoScelto = (giorno % 2 === (indexD % 2)) ? "Riposo" : "Mattina";
+                                turnoScelto = "Riposo";
                             }
                         } 
                         else if (nomeGiorno === "Domenica") {
@@ -429,6 +433,7 @@
                             }
                         } 
                         else {
+                            // Giorni feriali in base al monte giorni lavorativi
                             if (nottiFerialiAssegnate.has(giorno)) {
                                 turnoScelto = "Notte";
                                 eraNotteIeri = true;
@@ -438,12 +443,12 @@
                         }
                     }
 
-                    // Controllo incompatibilità: se un'unità contiene membri che hanno un divieto incrociato nello stesso giorno, gestiamo il turno
+                    // Incompatibilità coppie
                     incompatibilita.forEach(inc => {
                         let haOp1 = unita.membri.includes(inc.op1);
                         let haOp2 = unita.membri.includes(inc.op2);
                         if (haOp1 && haOp2) {
-                            turnoScelto = "Riposo"; // Se per errore sono nella stessa unità ma incompatibili, vanno a riposo di sicurezza
+                            turnoScelto = "Riposo";
                         }
                     });
 
