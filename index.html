@@ -516,7 +516,7 @@ function contaFestivi(escludi){
     F[k].forEach(e=>e.ops.forEach(o=>{c[o]=(c[o]||0)+1;let v=Number(t[0])*10000+Number(t[1])*100+e.g;if(!(last[o]>v))last[o]=v;}));});
   return {c,last};
 }
-function assegnaFestiviAuto(anno,mese,sd,squadre,manuali,incomp,carry,need,esc){
+function assegnaFestiviAuto(anno,mese,sd,squadre,manuali,incomp,carry,need,esc,parz){
   let {c,last}=contaFestivi(anno+'-'+mese),imp=new Set(),auto=[],nn={};
   squadre.forEach(s=>s.membri.forEach(m=>imp.add(m)));
   let unita=squadre.map(s=>({membri:s.membri,sq:true}));
@@ -529,7 +529,7 @@ function assegnaFestiviAuto(anno,mese,sd,squadre,manuali,incomp,carry,need,esc){
   const sc=u=>Math.max(...u.membri.map(m=>c[m]||0)),ls=u=>Math.max(...u.membri.map(m=>last[m]||0));
   festiviDelMese(anno,mese).forEach(f=>{
     let g=f.g;nn[g]=nn[g]||[];
-    const ppl=()=>nn[g].reduce((s,u)=>s+u.membri.length,0);
+    const ppl=()=>nn[g].reduce((s,u)=>s+u.membri.length,0)+((parz||{})[g]||0);
     while(ppl()<need){
       let cand=unita.filter(u=>{
         if(nn[g].includes(u)||(u.sq&&nn[g].some(v=>v.sq)))return false;
@@ -967,13 +967,53 @@ function generaTurniMese(){
     let sq=squadreData.filter(s=>s.membri.every(m=>sd.membri.includes(m)));
     let inc=incompData.filter(c=>sd.membri.includes(c.op1)&&sd.membri.includes(c.op2));
     let man=manualiData.filter(m=>sd.membri.includes(m.op));
-    let auto=assegnaFestiviAuto(anno,mese,sd,sq,man,inc,carry,Math.max(lim[0],2),esc);
+    // Notte assegnata a mano a UN membro di una squadra (non a tutta): la squadra non la riceve, il membro segue la squadra negli altri giorni
+    const parzialiNotte=man.filter(x=>x.turno==='Notte'&&sq.some(s=>s.membri.includes(x.op)&&!s.membri.every(mb=>man.some(y=>y.op===mb&&y.giorno===x.giorno&&y.turno==='Notte'))));
+    const manMotore=man.filter(x=>!parzialiNotte.includes(x));
+    const parz={};parzialiNotte.forEach(x=>{parz[x.giorno]=(parz[x.giorno]||0)+1;});
+    const applicaParziali=rr=>{
+      parzialiNotte.forEach(x=>{
+        const m=x.giorno;if(m<1||m>rr.N)return;
+        const sqU=rr.unita.find(u=>u.isSq&&u.membri.includes(x.op));
+        const ex=sqU?null:rr.unita.find(u=>u.daSquadra&&u.membri.length===1&&u.membri[0]===x.op);
+        const base=sqU||ex;if(!base||base.turni[m]==='Notte')return;
+        const t=base.turni;
+        const lavorati=a=>{let c=0;for(let g=1;g<=rr.N;g++)if(a[g]==='Notte'||a[g]==='Mattina'||a[g]==='Sabato Mattina')c++;return c;};
+        const domN=a=>{let c=0;for(let g=1;g<=rr.N;g++)if(a[g]==='Notte'&&dow(g)===0)c++;return c;};
+        const cons=a=>{let c=0;for(let g=1;g<rr.N;g++)if(a[g]==='Notte'&&a[g+1]==='Notte')c++;return c;};
+        const nights=[];for(let g=1;g<=rr.N;g++)if(t[g]==='Notte')nights.push(g);
+        // la notte assegnata a mano prende il posto di una delle notti della squadra (conta nelle sue notti del mese)
+        const costruisci=r=>{
+          let a=t.slice();
+          if(r!==null){a[r]=lavg(r)?'Mattina':'Festa';if(r<rr.N&&a[r+1]==='Riposo')a[r+1]=lavg(r+1)?'Mattina':'Festa';}
+          a[m]='Notte';
+          if(m<rr.N&&a[m+1]!=='Notte'&&a[m+1]!=='Escluso')a[m+1]='Riposo';
+          if(!a.includes('Sabato Mattina')){for(let g=1;g<=rr.N;g++)if(dow(g)===6&&!festSet.has(g)&&a[g]==='Festa'){a[g]='Sabato Mattina';break;}}
+          return a;
+        };
+        let best=null;
+        (nights.length?nights:[null]).forEach(r=>{
+          const a=costruisci(r);
+          const sc=Math.abs(lavorati(a)-lavorati(t))*10+cons(a)*100+(domN(a)<domN(t)?3:0)+Math.random()*0.9;
+          if(!best||sc<best.sc)best={r,a,sc};
+        });
+        if(sqU){
+          sqU.membri=sqU.membri.filter(mb=>mb!==x.op);
+          rr.unita.splice(rr.unita.indexOf(sqU)+1,0,{titolo:x.op,membri:[x.op],turni:best.a,isSq:false,daSquadra:sqU.titolo,parz:true});
+          if(!sqU.membri.length)rr.unita.splice(rr.unita.indexOf(sqU),1);
+        }else ex.turni=best.a;
+        if(best.r!==null)rr.cov[sd.k][best.r]-=1;
+        rr.cov[sd.k][m]+=1;
+      });
+      return rr;
+    };
+    let auto=assegnaFestiviAuto(anno,mese,sd,sq,manMotore,inc,carry,Math.max(lim[0],2),esc,parz);
     let domBase=num(sd.id+'Dom',2),dom2=domBase>=2?gruppoDomeniche(anno,mese,sd.membri,sq,lim):[];
     let cs=false;
-    const lancia=()=>motoreTurni({consec:cs,minSab:minSabV,ext,minTot:ext?minTot:0,anno,mese,dipendenti:sd.membri,
-      squadre:sq,incomp:inc,manuali:man.concat(auto),esclusi:esc,
+    const lancia=()=>applicaParziali(motoreTurni({consec:cs,minSab:minSabV,ext,minTot:ext?minTot:0,anno,mese,dipendenti:sd.membri,
+      squadre:sq,incomp:inc,manuali:manMotore.concat(auto),esclusi:esc,
       carry,staffetta:sd.k==='T'?sd.membri:[],
-      limiti:{S:sd.k==='S'?lim:[0,99],T:sd.k==='T'?lim:[0,99]},notti:nt,domMin:(domBase>=2?1:domBase),dom2,maxSab:num(sd.id+'Sab',999),maxPairs:num(sd.id+'Cons',99)});
+      limiti:{S:sd.k==='S'?lim:[0,99],T:sd.k==='T'?lim:[0,99]},notti:nt,domMin:(domBase>=2?1:domBase),dom2,maxSab:num(sd.id+'Sab',999),maxPairs:num(sd.id+'Cons',99)}));
     // ogni volta una combinazione diversa: provo qualche variante casuale e tengo la migliore
     // Il minimo a notte oltre 2 è una preferenza ("dove è possibile"): i giorni lavorati e i limiti veri hanno la precedenza
     const hardMin=Math.min(lim[0],2),zeroOk=c=>sd.k==='T'&&c===0;
@@ -1117,7 +1157,7 @@ function generaTurniMese(){
       let card=document.createElement('div');card.className='box';card.dataset.membri=JSON.stringify(u.membri);card.dataset.sede=sd.nome;
       let html=`<h3>${isSq?'👥 Squadra: ':'👤 Operatore: '}${u.titolo} <span class="stats">Notti: ${n}/${nt} | Dom. notte: ${d} | Giorni lav.: ${l}/${r.target-as}${as?' | Esclusi: '+as:''}</span></h3>`;
       if(isSq)html+=`<p class="membri">Membri: ${u.membri.join(', ')}</p>`;
-      else if(u.daSquadra)html+=`<p class="membri">Della squadra ${u.daSquadra}: esclusa in alcuni giorni, il resto della squadra lavora</p>`;
+      else if(u.daSquadra)html+=`<p class="membri">Della squadra ${u.daSquadra}: ${u.parz?'notte assegnata a mano, per il resto segue i turni della squadra':'esclusa in alcuni giorni, il resto della squadra lavora'}</p>`;
       for(let g=1;g<=r.N;g++)html+=`<div class="turno-row"><label>${nomiGiorni[dow(g)]} ${g} ${nome} ${anno}:</label>${creaSelectTurno(u.turni[g])}</div>`;
       card.innerHTML=html;area.appendChild(card);
     });
