@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="theme-color" content="#f3f4f7">
 <title>Turni manutenzione stradale</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
 <style>
 :root{--bg:#f3f4f7;--ink:#141821;--mut:#6a7381;--line:#e4e7ec;--soft:#f7f8fa;--amb:#ffb020;--ac:#2563eb;--on:#fff}
 *{box-sizing:border-box}
@@ -1419,6 +1422,7 @@ async function condividiPDF(){
 }
 
 init();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script>
 </body>
 </html>
