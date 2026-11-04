@@ -1857,7 +1857,17 @@ NOMI.forEach(n=>{
     }
     if(snap.metadata.hasPendingWrites){fatto(n);return;}
     const d=snap.data(),ct=d.updatedAt||0,lt=getTs(n);
-    if(ct>lt){pend[n]=d;if(booted)mostraAvviso();}
+    if(ct>lt){
+      if(n==='storico'&&booted){
+        /* lo storico (mese precedente, notti, festivi) si applica subito, senza ricaricare */
+        try{
+          rawSet(K_STORICO,d.json);setTs(n,ct);localSig.storico=sig('storico');
+          storico=parse(d.json)||{};
+          if(typeof aggiornaListaReset==='function')aggiornaListaReset();
+          setStatus('☁️ Sincronizzato');
+        }catch(e){pend[n]=d;mostraAvviso();}
+      }else{pend[n]=d;if(booted)mostraAvviso();}
+    }
     else if(ct<lt)programmaInvio(n,true);
     fatto(n);
   },err=>{console.warn('Firestore',err);setStatus('☁️ Offline: i dati restano su questo dispositivo');fatto(n);});
