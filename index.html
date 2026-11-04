@@ -342,7 +342,7 @@ body{padding-bottom:110px}
 <p class="sedeh">Staffetta (0 notti coperte è ammesso, 1 solo operaio no)</p>
 <div class="g4">
 <div><label for="stMin">Minimo a notte</label><input type="number" id="stMin" value="2" min="0"></div>
-<div><label for="stMax">Massimo a notte</label><input type="number" id="stMax" value="3" min="0"></div>
+<div><label for="stMax">Massimo a notte</label><input type="number" id="stMax" value="" min="0" placeholder="Nessun limite"></div>
 <div><label for="stNotti">Notti al mese a testa</label><input type="number" id="stNotti" value="6" min="1" max="15"></div>
 <div><label for="stDom">Domeniche di notte a testa</label><input type="number" id="stDom" value="1" placeholder="Libero" min="0" max="5"></div>
 <div><label for="stSab">Massimo persone sabato mattina</label><input type="number" id="stSab" placeholder="Nessun limite" min="0"></div>
@@ -398,7 +398,7 @@ const festiviFissi={
 
 const DEFAULT_SEDI={
 sgMin:'3',sgMax:'6',sgNotti:'6',sgDom:'1',sgSab:'',sgSabMin:'',sgCons:'0',
-stMin:'2',stMax:'3',stNotti:'6',stDom:'1',stSab:'',stSabMin:'2',stCons:'0'
+stMin:'2',stMax:'',stNotti:'6',stDom:'1',stSab:'',stSabMin:'2',stCons:'0'
 };
 function ripristinaDefaultSedi(pref){
 Object.keys(DEFAULT_SEDI).filter(id=>id.startsWith(pref)).forEach(id=>{
@@ -772,6 +772,7 @@ function getGiorniNelMese(anno,mese){return new Date(anno,Number(mese)+1,0).getD
 // MOTORE DEI TURNI CON REGOLE CORRETTE
 // ==========================================
 function motoreTurni(o){
+const ZS=0.5;
 const NT=o.notti||6,W=1,WR=1,MINC=3,BON=4,MINL=2;
 const N=getGiorniNelMese(o.anno,o.mese);
 const rnd=(()=>{let a=(o.seed===undefined?(Math.random()*4294967296):o.seed)>>>0;return()=>{a=(a+0x6D2B79F5)|0;let t=Math.imul(a^(a>>>15),1|a);t=(t+Math.imul(t^(t>>>7),61|t))^t;return((t^(t>>>14))>>>0)/4294967296;};})();
@@ -944,7 +945,7 @@ unita.forEach(u=>u.S.forEach(g=>{cov.S[g]+=u.k.S;cov.T[g]+=u.k.T;}));
 const pen=(s,c,g)=>{
 let lo=L[s][0],hi=hiG(s,g),t=0;
 if(c>hi)t=(c-hi)*(c-hi)*2;
-else if(c<lo)t=c===0?(s==='T'?0:0.5):(s==='T'?(lo-c)*(lo-c)*3:(lo-c)*(lo-c));
+else if(c<lo)t=c===0?(s==='T'?0:ZS):(s==='T'?(lo-c)*(lo-c)*3:(lo-c)*(lo-c));
 if(o.minTot>0&&o.ext){
 let tot=c+(o.ext[g]||0);
 if(tot<1)t+=(o.ferieMode?4:40);
@@ -1011,10 +1012,10 @@ best.u.S=best.T2;commit(best.u);
 
 // IMPOSIZIONE RIGIDA DEI MINIMI NEL RIPARO FINALE
 const scoperto=(sd,c,g)=>c<2&&!(c===0&&(sd==='S'||!o.ext||(o.ext[g]||0)>=1));
-let fase=0;
+let fase=0;const saltati=new Set();
 for(let it=0;it<800;it++){
 let g0=null,sd0=null,w=1e9;
-['S','T'].forEach(sd=>{for(let g=1;g<=N;g++)if(scoperto(sd,cov[sd][g],g)&&cov[sd][g]<w){w=cov[sd][g];g0=g;sd0=sd;}});
+['S','T'].forEach(sd=>{for(let g=1;g<=N;g++)if(!saltati.has(sd+g)&&scoperto(sd,cov[sd][g],g)&&cov[sd][g]<w){w=cov[sd][g];g0=g;sd0=sd;}});
 if(g0===null)break;
 let best=null;
 unita.forEach(u=>{
@@ -1033,15 +1034,57 @@ if(vic(T,g0,u)||confl(u,g0))return;
 T.push(g0);
 if(!domOk(u,T))return;
 let dv=Math.abs(target-prospect(u,T));
-if(dv>p0+(fase>=1?2:1))return;
+if(dv>p0+[1,2,4,99][fase])return;
 let sc=dv*10-cov[sd0][r]*0.1;
 if(!best||sc<best.sc)best={u,r,sc};
 });
 });
-if(!best){if(fase<2){fase++;continue;}break;}
+if(!best){
+let rel=null;
+unita.forEach(u=>{
+let k=u.k[sd0];if(!k||!u.S.includes(g0)||u.man.has(g0)||cov[sd0][g0]!==k)return;
+if(sd0==='T'&&o.ext&&(o.ext[g0]||0)<1&&fase<3)return;
+let p0=Math.abs(target-prospect(u,u.S)),T0=u.S.filter(x=>x!==g0);
+tutti.forEach(g=>{
+if(g===g0||T0.includes(g)||(u.turni[g]!==""&&g!==g0+1))return;
+let nc=cov[sd0][g]+k;if(nc>hiG(sd0,g)||nc<2||vic(T0,g,u)||confl(u,g))return;
+let T=T0.concat(g);if(!domOk(u,T))return;
+let dv=Math.abs(target-prospect(u,T));if(dv>p0+[1,2,4,99][fase])return;
+let sc=dv*10+rnd();if(!rel||sc<rel.sc)rel={u,g,sc};
+});
+});
+if(rel){cov[sd0][g0]-=rel.u.k[sd0];cov[sd0][rel.g]+=rel.u.k[sd0];rel.u.S=rel.u.S.filter(x=>x!==g0).concat(rel.g);commit(rel.u);if(cov[sd0][g0]===0)saltati.add(sd0+g0);fase=0;continue;}
+if(fase<3){fase++;continue;}
+saltati.add(sd0+g0);fase=0;continue;}
 fase=0;
 ['S','T'].forEach(sd=>{let k=best.u.k[sd];cov[sd][best.r]-=k;cov[sd][g0]+=k;});
 best.u.S=best.u.S.filter(x=>x!==best.r).concat(g0);commit(best.u);
+}
+
+const coverOk=(u,r,g)=>['S','T'].every(sd=>{
+let kk=u.k[sd];if(!kk)return true;
+let nr=cov[sd][r]-kk,ng=cov[sd][g]+kk;
+let okR=nr>=2||(nr===0&&(sd==='S'||!o.ext||(o.ext[r]||0)>=1));
+return okR&&ng<=hiG(sd,g)&&ng>=2;
+});
+for(let it=0;it<200;it++){
+let best=null;
+unita.forEach(u=>{
+let p0=Math.abs(target-prospect(u,u.S));if(p0===0)return;
+u.S.filter(r=>!u.man.has(r)).forEach(r=>{
+let T0=u.S.filter(x=>x!==r);
+tutti.forEach(g=>{
+if(g===r||(u.turni[g]!==""&&g!==r+1)||T0.includes(g)||vic(T0,g,u)||confl(u,g))return;
+let T=T0.concat(g);if(!domOk(u,T))return;
+let d=Math.abs(target-prospect(u,T));if(d>=p0)return;
+if(!coverOk(u,r,g))return;
+let sc=d*10+rnd();if(!best||sc<best.sc)best={u,r,g,sc};
+});
+});
+});
+if(!best)break;
+['S','T'].forEach(sd=>{let kk=best.u.k[sd];if(kk){cov[sd][best.r]-=kk;cov[sd][best.g]+=kk;}});
+best.u.S=best.u.S.filter(x=>x!==best.r).concat(best.g);commit(best.u);
 }
 
 const MINSAB=o.minSab||0,MAXSAB=(o.maxSab===undefined?999:o.maxSab);
@@ -1299,7 +1342,7 @@ let t0=Date.now();
 let tu=0,primo=-1,uc=false;
 for(let fs=0;fs<2;fs++){
 if(fs===1){if(mh===0&&ms===0)break;cs=true;primo=-1;t0=Date.now();}
-for(let tent=0;tent<120&&(tent<4||Date.now()-t0<4000);tent++){tu++;let rr=lancia(),q=punti(rr),tot=q.h+q.so*0.3+q.ss*0.5;
+for(let tent=0;tent<1000&&(tent<4||Date.now()-t0<5000);tent++){tu++;let rr=lancia(),q=punti(rr),tot=q.h+q.so*0.3+q.ss*0.5;
 if(tot<migl){migl=tot;mh=q.h;ms=q.so;r=rr;uc=cs;}
 if(q.h===0&&primo<0)primo=tent;
 if(q.h===0&&q.so===0&&q.ss===0)break;
