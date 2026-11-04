@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="it">
 <head>
 <meta charset="UTF-8">
@@ -209,11 +209,6 @@ details.elenco>summary{cursor:pointer;padding:10px 0;color:var(--mut);font-weigh
 .nav button.on::before{top:-6px}
 body{padding-bottom:110px}
 }
-.btn-ricarica{margin-left:auto;flex:none;width:44px;height:44px;padding:0;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);box-shadow:none;cursor:pointer}
-.btn-ricarica svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.btn-ricarica:hover{background:rgba(255,255,255,.24)}
-.btn-ricarica.gira svg{animation:giraRic .7s linear infinite}
-@keyframes giraRic{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -221,7 +216,7 @@ body{padding-bottom:110px}
 <header class="hero"><div class="logo"><svg viewBox="0 0 24 24"><path d="M8 3 4 21M16 3l4 18"/><path d="M12 4v3M12 10v4M12 17v3"/></svg></div><div>
 <h1>Turni manutenzione stradale</h1>
 <p>Genera i turni del mese per ogni operaio o squadra, rispettando riposi, notti di domenica e incompatibilità.</p>
-</div><button type="button" id="btnRicarica" class="btn-ricarica" onclick="ricaricaPagina()" title="Ricarica la pagina" aria-label="Ricarica la pagina"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg></button></header>
+</div></header>
 
 <div class="tab on" id="tab-turni">
 <section class="box">
@@ -1719,16 +1714,193 @@ window.scrollTo(0,0);
 creaPickers();
 init();
 vaiSezione((()=>{try{let t=localStorage.getItem('tabTurni');return document.getElementById('tab-'+t)?t:'turni';}catch(e){return 'turni';}})());
-function ricaricaPagina(){
-const b=document.getElementById('btnRicarica');if(b)b.classList.add('gira');
-const vai=()=>location.reload();
-try{
-if('serviceWorker' in navigator){
-navigator.serviceWorker.getRegistration().then(r=>r?r.update():null).catch(()=>{}).finally(()=>setTimeout(vai,150));
-}else vai();
-}catch(e){vai();}
-}
 if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js');
 </script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
+import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBR-V7HUjEWnQcFlRUUsRA8jLf_6GydHWA",
+  authDomain: "gestioine-turni.firebaseapp.com",
+  projectId: "gestioine-turni",
+  storageBucket: "gestioine-turni.firebasestorage.app",
+  messagingSenderId: "135378847076",
+  appId: "1:135378847076:web:42d06bc57406394575e671"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+/* ===== Sincronizzazione: localStorage resta la fonte locale, Firestore la copia condivisa =====
+   Tre documenti nella collezione "turni":
+   - stato   : operai, squadre, ferie, esclusioni, parametri... (senza i turni generati)
+   - storico : storico mensile
+   - area    : turni generati del mese mostrato (HTML compresso)
+   Regola conflitti: vince l'ultima modifica. */
+const K_STATO='statoTurniV2', K_STORICO='storicoTurniV1';
+const NOMI=['stato','storico','area'];
+const origSet=Storage.prototype.setItem;
+const rawSet=(k,v)=>origSet.call(localStorage,k,v);
+const rawGet=k=>{try{return localStorage.getItem(k);}catch(e){return null;}};
+const getTs=n=>Number(rawGet('cloudTs_'+n)||0);
+const setTs=(n,v)=>{try{rawSet('cloudTs_'+n,String(v));}catch(e){}};
+const parse=s=>{try{return JSON.parse(s);}catch(e){return null;}};
+
+/* --- compressione (l'HTML dei turni scende di ~10 volte) --- */
+const hasCS=typeof CompressionStream!=='undefined'&&typeof DecompressionStream!=='undefined';
+const toB64=u=>{let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s);};
+const fromB64=b=>{const s=atob(b),u=new Uint8Array(s.length);for(let i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u;};
+async function gzip(t){const st=new Blob([t]).stream().pipeThrough(new CompressionStream('gzip'));return toB64(new Uint8Array(await new Response(st).arrayBuffer()));}
+async function gunzip(b){const st=new Blob([fromB64(b)]).stream().pipeThrough(new DecompressionStream('gzip'));return await new Response(st).text();}
+
+/* --- cosa c'è in locale --- */
+function localPayload(n){
+  if(n==='storico'){const s=rawGet(K_STORICO);return s?{json:s}:null;}
+  const o=parse(rawGet(K_STATO));if(!o)return null;
+  if(n==='stato'){const r=Object.assign({},o);delete r.area;delete r.key;delete r.pdf;return{json:JSON.stringify(r)};}
+  return{html:o.area||'',key:o.key||'',pdf:o.pdf||''};
+}
+const sig=n=>{const p=localPayload(n);return p?JSON.stringify(p):'';};
+const localSig={};NOMI.forEach(n=>localSig[n]=sig(n));
+
+/* --- interfaccia: stato e avviso --- */
+const stBox=document.createElement('div');
+stBox.style.cssText='font-size:.78rem;color:#6a7381;margin-top:4px';
+const stEl=document.createElement('span');
+const exitBtn=document.createElement('span');
+exitBtn.textContent=' · Esci';exitBtn.style.cssText='cursor:pointer;text-decoration:underline;display:none';
+exitBtn.onclick=async()=>{try{await signOut(auth);}catch(e){}location.reload();};
+stBox.appendChild(stEl);stBox.appendChild(exitBtn);
+const heroTxt=document.querySelector('.hero>div:last-child');if(heroTxt)heroTxt.appendChild(stBox);
+const setStatus=t=>{stEl.textContent=t;};
+setStatus('☁️ Connessione…');
+let banner=null;
+function mostraAvviso(){
+  if(banner)return;
+  banner=document.createElement('div');
+  banner.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99999;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;background:#1f2937;color:#fff;font-size:.9rem;display:flex;align-items:center;justify-content:center;gap:10px';
+  banner.innerHTML='<span>🔄 Dati aggiornati da un altro dispositivo.</span>';
+  const b=document.createElement('button');b.textContent='Aggiorna';
+  b.style.cssText='width:auto;padding:6px 14px;background:#ffb020;color:#141821';
+  b.onclick=applicaRemoto;banner.appendChild(b);document.body.appendChild(banner);
+}
+
+/* --- invio a Firestore (ritardato di 3 s per risparmiare scritture) --- */
+const timers={};
+function programmaInvio(n,subito){clearTimeout(timers[n]);timers[n]=setTimeout(()=>{delete timers[n];invia(n);},subito?0:3000);}
+async function invia(n){
+  const p=localPayload(n);if(!p)return;
+  let data;
+  if(n==='area'){
+    data={key:p.key,pdf:p.pdf};
+    if(hasCS)data.gz=await gzip(p.html);else data.html=p.html;
+  }else data={json:p.json};
+  if(JSON.stringify(data).length>950000){setStatus('⚠️ Dati troppo grandi per la sincronizzazione ('+n+')');return;}
+  data.updatedAt=getTs(n)||Date.now();
+  try{await setDoc(doc(db,'turni',n),data);setStatus('☁️ Sincronizzato');}
+  catch(e){console.warn('Firestore',e);setStatus('☁️ Errore di sincronizzazione');}
+}
+
+/* --- ogni scrittura locale dell'app viene intercettata --- */
+let booted=false;
+Storage.prototype.setItem=function(k,v){
+  if(this!==localStorage||(k!==K_STATO&&k!==K_STORICO))return origSet.call(this,k,v);
+  if(window.__cloudApplying)return;           // evita che il salvataggio di chiusura pagina sovrascriva i dati appena scaricati
+  origSet.call(this,k,v);
+  if(!booted)return;
+  (k===K_STORICO?['storico']:['stato','area']).forEach(n=>{
+    const s=sig(n);
+    if(s!==localSig[n]){localSig[n]=s;setTs(n,Date.now());programmaInvio(n);setStatus('☁️ In sincronizzazione…');}
+  });
+};
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden)Object.keys(timers).forEach(n=>{clearTimeout(timers[n]);delete timers[n];invia(n);});
+});
+
+/* --- ricezione da Firestore --- */
+const pend={},primi=new Set();
+let tBoot=null;
+async function applicaRemoto(){
+  window.__cloudApplying=true;
+  Object.keys(timers).forEach(n=>{clearTimeout(timers[n]);delete timers[n];});
+  try{
+    for(const n of Object.keys(pend)){
+      const d=pend[n];
+      if(n==='storico')rawSet(K_STORICO,d.json);
+      else{
+        const o=parse(rawGet(K_STATO))||{};
+        if(n==='stato')Object.assign(o,parse(d.json)||{});
+        else{o.area=d.gz?await gunzip(d.gz):(d.html||'');o.key=d.key||'';o.pdf=d.pdf||'';}
+        rawSet(K_STATO,JSON.stringify(o));
+      }
+      setTs(n,d.updatedAt||Date.now());
+    }
+  }catch(e){console.warn('Applica',e);window.__cloudApplying=false;return;}
+  location.reload();
+}
+function finisciAvvio(){
+  if(booted)return;booted=true;clearTimeout(tBoot);
+  if(Object.keys(pend).length)applicaRemoto();else setStatus('☁️ Sincronizzato');
+}
+function fatto(n){primi.add(n);if(primi.size===NOMI.length)finisciAvvio();}
+function avviaSync(){
+tBoot=setTimeout(finisciAvvio,5000);
+
+NOMI.forEach(n=>{
+  onSnapshot(doc(db,'turni',n),snap=>{
+    if(!snap.exists()){
+      if(snap.metadata.fromCache)return;       // offline: non sappiamo ancora se esiste
+      if(localPayload(n)){if(!getTs(n))setTs(n,Date.now());programmaInvio(n,true);}
+      fatto(n);return;
+    }
+    if(snap.metadata.hasPendingWrites){fatto(n);return;}
+    const d=snap.data(),ct=d.updatedAt||0,lt=getTs(n);
+    if(ct>lt){pend[n]=d;if(booted)mostraAvviso();}
+    else if(ct<lt)programmaInvio(n,true);
+    fatto(n);
+  },err=>{console.warn('Firestore',err);setStatus('☁️ Offline: i dati restano su questo dispositivo');fatto(n);});
+});
+}
+
+/* --- login --- */
+function erroreLogin(e){
+  const c=e&&e.code||'';
+  if(c==='auth/invalid-credential'||c==='auth/wrong-password'||c==='auth/user-not-found'||c==='auth/invalid-email')return 'Email o password non corretta.';
+  if(c==='auth/too-many-requests')return 'Troppi tentativi, riprova tra qualche minuto.';
+  if(c==='auth/network-request-failed')return 'Nessuna connessione.';
+  return 'Errore di accesso'+(c?' ('+c+')':'')+'.';
+}
+function mostraLogin(){
+  if(document.getElementById('loginCloud'))return;
+  const ov=document.createElement('div');ov.id='loginCloud';
+  ov.style.cssText='position:fixed;inset:0;z-index:100000;display:grid;place-items:center;padding:20px;background:#f3f4f7';
+  ov.innerHTML='<div style="width:100%;max-width:360px;background:#fff;border:1px solid #e4e7ec;border-radius:20px;padding:24px;box-shadow:0 10px 28px rgba(16,24,40,.12)"><h2 style="margin:0 0 4px;font-size:1.3rem">Accedi</h2><p style="margin:0 0 16px;color:#6a7381;font-size:.9rem">Turni manutenzione stradale</p><input id="lgEmail" type="email" autocomplete="username" placeholder="Email"><input id="lgPass" type="password" autocomplete="current-password" placeholder="Password"><p id="lgErr" style="color:#a3231a;font-size:.88rem;margin:0 0 10px;min-height:1.2em"></p><button id="lgBtn" type="button">Entra</button></div>';
+  document.body.appendChild(ov);
+  const btn=ov.querySelector('#lgBtn'),err=ov.querySelector('#lgErr'),em=ov.querySelector('#lgEmail'),pw=ov.querySelector('#lgPass');
+  const entra=async()=>{
+    err.textContent='';
+    if(!em.value.trim()||!pw.value){err.textContent='Inserisci email e password.';return;}
+    btn.disabled=true;btn.textContent='Accesso…';
+    try{await signInWithEmailAndPassword(auth,em.value.trim(),pw.value);}
+    catch(e){err.textContent=erroreLogin(e);btn.disabled=false;btn.textContent='Entra';}
+  };
+  btn.onclick=entra;
+  pw.addEventListener('keydown',e=>{if(e.key==='Enter')entra();});
+  em.addEventListener('keydown',e=>{if(e.key==='Enter')pw.focus();});
+}
+let avviato=false;
+onAuthStateChanged(auth,u=>{
+  if(u){
+    const ov=document.getElementById('loginCloud');if(ov)ov.remove();
+    exitBtn.style.display='inline';
+    if(!avviato){avviato=true;avviaSync();}
+  }else{
+    exitBtn.style.display='none';setStatus('☁️ Accesso richiesto');mostraLogin();
+  }
+});
+</script>
+
 </body>
 </html>
