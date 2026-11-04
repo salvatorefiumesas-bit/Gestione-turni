@@ -100,15 +100,6 @@ details.msg .dg{margin:10px 0 0;padding-top:10px;border-top:1px solid rgba(0,0,0
 .nav button span{font-size:1.45rem;line-height:1}
 .nav button:hover{filter:none;transform:none;background:var(--soft)}
 .nav button.on{color:var(--ac);background:#eaf1ff}
-.pk-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;margin:0 0 10px;background:var(--soft);color:var(--ink);border:1px solid var(--line);font-weight:600}
-.pk-btn .pk-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pk-btn.has{border-color:var(--ac)}
-.pk-ov{position:fixed;inset:0;z-index:100;display:none;align-items:flex-end;justify-content:center;background:rgba(15,20,30,.45)}
-.pk-ov.on{display:flex}
-.pk-sheet{display:flex;flex-direction:column;width:100%;max-width:560px;max-height:85%;background:#fff;border-radius:22px 22px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
-.pk-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px 8px;font-weight:750;font-size:1.05rem}
-.pk-head span{font-size:.85rem;font-weight:650;color:var(--mut)}
-.pk-list{flex:1;overflow:auto;padding:0 12px}
 .pk-row{-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;display:flex;align-items:center;gap:14px;padding:13px 10px;border-bottom:1px solid #f0f2f5;font-weight:600;cursor:pointer}
 .pk-dot{flex:none;width:26px;height:26px;border-radius:50%;border:2px solid #c3c9d3;display:grid;place-items:center;color:#fff;font-size:15px;line-height:1}
 .pk-row.on .pk-dot{background:var(--ac);border-color:var(--ac)}
@@ -1202,7 +1193,6 @@ sqU.membri=sqU.membri.filter(mb=>mb!==x.op);
 rr.unita.splice(rr.unita.indexOf(sqU)+1,0,{titolo:x.op,membri:[x.op],turni:best.a,isSq:false,daSquadra:sqU.titolo,parz:true});
 if(!sqU.membri.length)rr.unita.splice(rr.unita.indexOf(sqU),1);
 }else ex.turni=best.a;
-if(best.r!==null)rr.cov[sd.k][best.r]-=1;
 rr.cov[sd.k][m]+=1;
 });
 return rr;
@@ -1664,4 +1654,12 @@ let i=[...card.querySelectorAll('.turno-row select')].indexOf(sel),c=card.queryS
 if(c){c.dataset.t=sel.value;c.querySelector('i').textContent=COD[sel.value]||'';}
 }
 function apriTurno(cell){
-let card=cell.closest('.box'),sel=[...card.querySelec
+let card=cell.closest('.box'),sel=[...card.querySelectorAll('.turno-row select')][+cell.dataset.i];if(!sel)return;
+let ov=document.getElementById('tnOv');
+if(!ov){ov=document.createElement('div');ov.id='tnOv';ov.className='pk-ov';
+ov.innerHTML='<div class="pk-sheet"><div class="pk-head" id="tnT"></div><div class="pk-list" id="tnL"></div><div class="pk-foot"><button type="button" id="tnX" class="pk-az" style="flex:1">Chiudi</button></div></div>';
+document.body.appendChild(ov);ov.addEventListener('click',e=>{if(e.target===ov||e.target.id==='tnX')ov.classList.remove('on');});}
+document.getElementById('tnT').textContent=sel.closest('.turno-row').querySelector('label').textContent.replace(/:$/,'');
+let L=document.getElementById('tnL');L.innerHTML='';
+TURNI.forEach(t=>{let b=document.createElement('button');b.type='button';b.className='tn-opt'+(t===sel.value?' on':'');b.dataset.t=t;b.textContent=t;
+b.onclick=()=>{sel.value=t;sel.dispatchEvent(new Event('change',{bubb
