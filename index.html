@@ -1488,8 +1488,13 @@ let r=null,migl=1e9,mh=1e9,ms=0,t0=Date.now(),tu=0,uc=false,pairsExtra=0;
 const ZMAX=3;
 const zeroN=rr=>{if(sd.k!=='S')return 0;let n=0;for(let g=1;g<=rr.N;g++)if(rr.cov[sd.k][g]===0)n++;return n;};
 const consP=rr=>{let n=0;rr.unita.forEach(u=>{for(let g=1;g<rr.N;g++)if(u.turni[g]==='Notte'&&u.turni[g+1]==='Notte'){n+=u.membri.length;break;}});return n;};
-const valuta=rr=>{const q=punti(rr),zz=zeroN(rr),hR=q.h-10*zz,cp=consP(rr);
-return {q,zz,cp,mhA:hR+(zz>ZMAX?10*zz:0),tot:(zz>ZMAX?(zz-ZMAX)*1e5:0)+hR*1e4+cp*100+zz*10+q.so*0.3+q.ss*0.5};};
+// NOTTE-RIPOSO-NOTTE (N,R,N): penalità alta ma non bloccante (via di mezzo tra regola rigida e morbida).
+// Conta una volta per ogni persona e per ogni occorrenza. Peso sotto a quello delle notti consecutive (100)
+// e molto sotto agli errori gravi (1e4): si evita quasi sempre, ma non a costo di rompere altre regole.
+const NRN_W=60;
+const nrnP=rr=>{let n=0;rr.unita.forEach(u=>{if(u.daSquadra)return;for(let g=1;g<=rr.N-2;g++)if(u.turni[g]==='Notte'&&u.turni[g+1]==='Riposo'&&u.turni[g+2]==='Notte')n+=u.membri.length;});return n;};
+const valuta=rr=>{const q=punti(rr),zz=zeroN(rr),hR=q.h-10*zz,cp=consP(rr),nrn=nrnP(rr);
+return {q,zz,cp,nrn,mhA:hR+(zz>ZMAX?10*zz:0),tot:(zz>ZMAX?(zz-ZMAX)*1e5:0)+hR*1e4+cp*100+nrn*NRN_W+zz*10+q.so*0.3+q.ss*0.5};};
 let rafNote='';
 const cerca=(budget,budgetRaf)=>{
 r=null;migl=1e9;mh=1e9;ms=0;tu=0;uc=false;cs=false;rafNote='';let primo=-1;t0=Date.now();
@@ -1505,19 +1510,19 @@ const bud=fs<=1?budget:Math.min(budget,1800);
 for(let tent=0;tent<1000&&(tent<4||Date.now()-t0<bud);tent++){tu++;let rr=lancia(),V=valuta(rr),q=V.q;
 if(V.tot<migl){migl=V.tot;mh=V.mhA;ms=q.so;r=rr;uc=cs&&V.cp>0;}
 if(q.h===0&&primo<0)primo=tent;
-if(q.h===0&&q.so===0&&q.ss===0)break;
-if(primo>=0&&tent>=primo+15)break;}
+if(q.h===0&&q.so===0&&q.ss===0&&V.nrn===0)break;
+if(primo>=0&&tent>=primo+(V.nrn>0?60:15))break;}
 }
-if(budgetRaf&&r&&(mh>0||(ms>0&&!rafFatto)||(rafFatto&&uc)))raffina(budgetRaf);
+if(budgetRaf&&r&&(mh>0||(ms>0&&!rafFatto)||(rafFatto&&uc)||(!rafFatto&&nrnP(r)>0)))raffina(budgetRaf);
 };
 
 // AFFINAMENTO CON SCAMBI: sposta 1 o 2 notti di un singolo operaio mantenendo
 // le notti a testa, un solo sabato mattina a testa, riposi, domeniche e incompatibilità
 const raffina=budget=>{
 const k=sd.k,tFine=Date.now()+budget;
-const pun=()=>{const q=punti(r);return {h:q.h,so:q.so,tot:q.h+q.so*0.3+q.ss*0.5};};
+const pun=()=>{const q=punti(r),nr=nrnP(r);return {h:q.h,so:q.so,nr,tot:q.h+q.so*0.3+q.ss*0.5+nr*0.5};};
 let cur=pun();const tot0=cur.tot;
-if(cur.h===0&&cur.so===0)return;
+if(cur.h===0&&cur.so===0&&cur.nr===0)return;
 const snap=()=>({t:cur.tot,tn:r.unita.map(u=>u.turni.slice()),cv:r.cov[k].slice()});
 let best=snap();
 const unitaOk=r.unita.filter(u=>!u.isSq&&!u.daSquadra&&u.membri.length===1&&u.exN&&u.exM);
@@ -1550,7 +1555,7 @@ return S.some(g=>r.unita.some(v=>v!==u&&v.membri.includes(altro)&&v.turni[g]==='
 };
 const sceglie=arr=>arr[Math.floor(Math.random()*arr.length)];
 let prove=0;
-while(Date.now()<tFine&&(cur.h>0||cur.so>0)){
+while(Date.now()<tFine&&(cur.h>0||cur.so>0||cur.nr>0)){
 for(let rep=0;rep<40;rep++){
 prove++;
 let u,fx,forza=null;
@@ -1586,16 +1591,16 @@ rem.forEach(g=>{r.cov[k][g]-=1;});add.forEach(g=>{r.cov[k][g]+=1;});
 const q=pun();
 if(q.tot<=cur.tot+1e-9||(q.h<=cur.h&&q.tot<=cur.tot+0.35&&Math.random()<0.03)){cur=q;if(cur.tot<best.t-1e-9)best=snap();}
 else{u.turni=vecchio;rem.forEach(g=>{r.cov[k][g]+=1;});add.forEach(g=>{r.cov[k][g]-=1;});}
-if(cur.h===0&&cur.so===0)break;
+if(cur.h===0&&cur.so===0&&cur.nr===0)break;
 }
 }
 if(best.t<cur.tot-1e-9){r.unita.forEach((u,i)=>{u.turni=best.tn[i];});for(let g=0;g<best.cv.length;g++)r.cov[k][g]=best.cv[g];}
-const q=punti(r);const V0=valuta(r);mh=V0.mhA;ms=q.so;const raw=q.h+q.so*0.3+q.ss*0.5;
+const q=punti(r);const V0=valuta(r);mh=V0.mhA;ms=q.so;const raw=q.h+q.so*0.3+q.ss*0.5+nrnP(r)*0.5;
 if(raw<tot0-1e-9)rafNote=` · migliorata con scambi di notti (penalità da ${Math.round(tot0*10)/10} a ${Math.round(raw*10)/10})`;migl=V0.tot;
 };
 cerca(5000,3000);
 primaFatta=true;
-const mkTent=()=>`<p class="vuoto" style="margin:0 0 10px;font-size:.82rem">${sd.nome}: ${mh===0?'combinazione trovata al tentativo '+tu:'nessuna combinazione perfetta dopo '+tu+' tentativi (penalità della migliore: '+mh+')'} · ${((Date.now()-t0)/1000).toFixed(1)} s${uc?' · notti consecutive usate perché necessarie':''}${rafNote}</p>`;
+const mkTent=()=>`<p class="vuoto" style="margin:0 0 10px;font-size:.82rem">${sd.nome}: ${mh===0?'combinazione trovata al tentativo '+tu:'nessuna combinazione perfetta dopo '+tu+' tentativi (penalità della migliore: '+mh+')'} · ${((Date.now()-t0)/1000).toFixed(1)} s${uc?' · notti consecutive usate perché necessarie':''}${r&&nrnP(r)>0?' · '+nrnP(r)+' Notte-Riposo-Notte non evitabile':''}${rafNote}</p>`;
 let notaFerie='';
 if(sd.k==='S'&&ferieMode&&domBase>=2&&domBase<99&&r&&(mh>0||zeroN(r)>0||uc)){
 const o0={sq,dom:domBase,r,migl,mh,ms,tu,uc,t0,rafNote},V0=valuta(r);
