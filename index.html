@@ -413,7 +413,7 @@ const CODICE_SEDI='159615';
 let sediBloccate=true;
 function applicaBloccoSedi(){
 Object.keys(DEFAULT_SEDI).forEach(id=>{const e=document.getElementById(id);if(e)e.disabled=sediBloccate;});
-document.querySelectorAll('#tab-regole .btn-def').forEach(b=>{b.disabled=sediBloccate;});
+document.querySelectorAll('#tab-regole button[onclick^="ripristinaDefaultSedi"]').forEach(b=>{b.disabled=sediBloccate;});
 const set=(id,v)=>{const e=document.getElementById(id);if(e)e.style.display=v;};
 set('lockSblocca',sediBloccate?'flex':'none');
 set('lockBlocca',sediBloccate?'none':'block');
@@ -1622,6 +1622,13 @@ r=o.r;migl=o.migl;mh=o.mh;ms=o.ms;tu=o.tu;uc=o.uc;t0=o.t0;dg=o.dg;
 notaAuto=`<div class="msg warn">🔧 <strong>Staffetta · target non raggiunti.</strong> Ho provato ${puoDom?'ad alzare le domeniche a 2 a testa, ':''}${o.sq.length?'a eliminare una squadra alla volta':''}${puoDom&&o.sq.length?' e le due cose insieme':''}, ma in circa 40 secondi non ho trovato nessuna combinazione che raggiunga i target. Ho mantenuto le impostazioni originali: puoi rigenerare.</div>`;
 }
 tentTxt=mkTent();
+}
+// AVVISO: con 2 o più domeniche a testa, se qualcuno ne fa meno lo dico chiaramente
+if(!notaAuto&&domBase>=2&&domBase<99){
+const meno=dg.filter(x=>x.dm);
+if(meno.length){
+notaAuto=`<div class="msg warn">ℹ️ <strong>${sd.nome} · non tutti fanno ${domBase} domeniche di notte.</strong> ${meno.length===1?'Un operaio ne fa':meno.length+' operai ne fanno'} meno di ${domBase}: ${meno.map(x=>x.nome).join(', ')}. Con i limiti di questo mese non è stato possibile dare ${domBase} domeniche a tutti. Il dettaglio è nel riquadro ⚠️ qui sotto.</div>`;
+}
 }
 for(let g=1;g<=r.N;g++)copTot[g]+=r.cov[sd.k][g];
 let sabL=[],sabKo=false,sabTot=0;const satR=contaSab(r);
