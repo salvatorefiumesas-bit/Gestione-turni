@@ -827,6 +827,7 @@ unita.forEach(u=>{
 u.nt = (!u.isSq && o.ntPer && o.ntPer[u.membri[0]] !== undefined) ? o.ntPer[u.membri[0]] : NT;
 u.dx = domX; u.dm = domX<99 ? Math.min(domX,u.nt) : 0;
 if(o.domPer && !u.isSq && o.domPer[u.membri[0]] !== undefined){u.dx = o.domPer[u.membri[0]]; u.dm = Math.min(u.dx,u.nt);}
+u.sx = o.satMax !== undefined ? o.satMax : 99;
 });
 
 unita.forEach(u=>{u.exF=u.membri.some(m=>exsF.has(m));});
@@ -882,7 +883,7 @@ if(!u.exM.has(g)||u.exN.has(g)||!fer(g)||u.turni[g]!==""||S.includes(g-1)||S.inc
 S.push(g);cover[g]++;
 }
 let fissi=new Set(S);
-const ok=(g,T)=>u.turni[g]===""&&!T.includes(g)&&!vic(T,g,u)&&!confl(u,g)&&!(dF(g,u)&&T.filter(x=>dF(x,u)).length>=u.dx);
+const ok=(g,T)=>u.turni[g]===""&&!T.includes(g)&&!vic(T,g,u)&&!confl(u,g)&&!(dF(g,u)&&T.filter(x=>dF(x,u)).length>=u.dx)&&!(u.sx<99&&dow(g)===6&&T.filter(x=>dow(x)===6).length>=u.sx);
 const tie=g=>rnd()*0.9;
 const scegli=(T,pool)=>{let best=null,bs=1e9;pool.forEach(g=>{if(!ok(g,T))return;
 let sc=cover[g]+W*(costo(T.concat(g))-costo(T))+tie(g)-(cover[g]<MINC?BON:0);if(sc<bs){bs=sc;best=g;}});return best;};
@@ -902,7 +903,9 @@ u.man=new Set(fissi);if(u.carryFlag)u.man.add(1);u.S=S;commit(u);
 });
 
 const nDomU=(T,u)=>T.filter(g=>dF(g,u)).length;
-const domOk=(u,T)=>{let n=nDomU(T,u),c=nDomU(u.S,u);return (n<=u.dx||n<=c)&&(n>=u.dm||n>=c);};
+const nSatU=T=>T.filter(g=>dow(g)===6).length;
+const satOk=(u,T)=>{if(u.sx>=99)return true;let n=nSatU(T),c=nSatU(u.S);return n<=u.sx||n<=c;};
+const domOk=(u,T)=>{let n=nDomU(T,u),c=nDomU(u.S,u);return (n<=u.dx||n<=c)&&(n>=u.dm||n>=c)&&satOk(u,T);};
 for(let it=0;it<300;it++){
 let g0=null;
 for(let g=1;g<=N;g++)if(dow(g)!==0&&cover[g]<MINL&&(g0===null||cover[g]<cover[g0]))g0=g;
@@ -967,7 +970,7 @@ cover[mig.r]--;cover[mig.g]++;u.S=u.S.filter(x=>x!==mig.r).concat(mig.g);commit(
 
 const sedeDi=m=>(o.staffetta||[]).includes(m)?'T':'S';
 const L=o.limiti||{S:[0,99],T:[0,99]};
-const hiG=(s,g)=>(sqD&&dow(g)===0&&o.hiDom!==undefined)?Math.max(L[s][1],o.hiDom):L[s][1];
+const hiG=(s,g)=>(o.domLibere&&s==='S'&&dF(g,null))?9999:((sqD&&dow(g)===0&&o.hiDom!==undefined)?Math.max(L[s][1],o.hiDom):L[s][1]);
 unita.forEach(u=>{u.k={S:u.membri.filter(m=>sedeDi(m)==='S').length,T:u.membri.filter(m=>sedeDi(m)==='T').length};});
 const cov={S:Array(N+2).fill(0),T:Array(N+2).fill(0)};
 unita.forEach(u=>u.S.forEach(g=>{cov.S[g]+=u.k.S;cov.T[g]+=u.k.T;}));
@@ -1317,22 +1320,24 @@ return rr;
 let domBase=num(sd.id+'Dom',99),dom2=[];
 let domPer=null;
 const domDi=u=>(domPer&&!u.isSq&&domPer[u.membri[0]]!==undefined)?domPer[u.membri[0]]:domBase;
-let auto,sqOn,hiDom;
+let auto,sqOn,hiDom,domLib=false,capDom=99;
 const configura=(sqL,domV)=>{
 sq=sqL;domBase=domV;calcNtPer();calcParz();
 auto=assegnaFestiviAuto(anno,mese,sd,sq,manMotore,inc,carry,Math.max(lim[0],2),esc,parz);
 sqOn=domBase>=2&&domBase<99&&sq.length>=2;
+domLib=sd.k==='S'&&domBase>=2&&domBase<99;
+{const gd=[];for(let g=1;g<=getGiorniNelMese(anno,mese);g++)if(dFm([],g))gd.push(g);capDom=Math.max(lim[1],gd.length?Math.ceil(sd.membri.length*domBase/gd.length):0);}
 hiDom=sq.map(q=>q.membri.length).sort((a,b)=>b-a).slice(0,2).reduce((a,b)=>a+b,0);};
 configura(sq,domBase);
-const hiC=g=>(sqOn&&dow(g)===0)?Math.max(lim[1],hiDom):lim[1];
+const hiC=g=>(domLib&&dFm([],g))?9999:((sqOn&&dow(g)===0)?Math.max(lim[1],hiDom):lim[1]);
 const maxSq=g=>(sqOn&&dow(g)===0)?2:1;
 let cs=false;
 const lancia=()=>applicaParziali(motoreTurni({sqDom:sqOn,hiDom,consec:cs,minSab:minSabV,ext,minTot:ext?minTot:0,ferieMode,anno,mese,dipendenti:sd.membri,
 squadre:sq,incomp:inc,manuali:manMotore.concat(auto),esclusi:esc,
 carry,eccFest:[...exsM],staffetta:sd.k==='T'?sd.membri:[],
-limiti:{S:sd.k==='S'?lim:[0,99],T:sd.k==='T'?lim:[0,99]},notti:nt,ntPer,domMax:domBase,domPer,dom2,maxSab:num(sd.id+'Sab',999),maxPairs:num(sd.id+'Cons',99)}));
+limiti:{S:sd.k==='S'?lim:[0,99],T:sd.k==='T'?lim:[0,99]},notti:nt,ntPer,domMax:domBase,domPer,domLibere:domLib,satMax:domLib?1:99,dom2,maxSab:num(sd.id+'Sab',999),maxPairs:num(sd.id+'Cons',99)}));
 
-const hardMin=lim[0],zeroOk=c=>c===0;
+const hardMin=sd.k==='S'?Math.min(lim[0],2):lim[0],zeroOk=c=>c===0;
 const minSabV=num(sd.id+'SabMin',0);
 
 // TOLLERANZA DI 1 NOTTE A ZERO TOTALE NEL MESE
@@ -1348,6 +1353,7 @@ let c=rr.cov[sd.k][g];
 if(c>hiC(g)||(c<hardMin&&c>0))h+=10;
 else if(c===0){if(sd.k==='S')so+=0.5;}
 else if(c<lim[0])so+=lim[0]-c;
+if(domLib&&dFm([],g)&&c>capDom)so+=(c-capDom);
 
 if(ext){
 let tt=c+ext[g];
@@ -1372,6 +1378,7 @@ if(t==="Escluso"&&lavg(g))as++;
 let dn=0;for(let g=1;g<=rr.N;g++)if(u.turni[g]==="Notte"&&dFm(u.membri,g))dn++;
 const dd=domDi(u),dReq=dd<99?Math.min(dd,ntU(u)):0;
 if(dn<dReq)h+=(dReq-dn)*5;
+if(domLib){let sn=0;for(let g=1;g<=rr.N;g++)if(u.turni[g]==="Notte"&&dow(g)===6)sn++;if(sn>1)h+=(sn-1)*5;}
 h+=Math.abs(n-ntU(u))*5+Math.abs(l-(rr.target-as))*20;
 });
 return {h,so,ss};
@@ -1399,6 +1406,8 @@ const k=sd.k,tFine=Date.now()+budget;
 const pun=()=>{const q=punti(r);return {h:q.h,so:q.so,tot:q.h+q.so*0.3+q.ss*0.5};};
 let cur=pun();const tot0=cur.tot;
 if(cur.h===0&&cur.so===0)return;
+const snap=()=>({t:cur.tot,tn:r.unita.map(u=>u.turni.slice()),cv:r.cov[k].slice()});
+let best=snap();
 const unitaOk=r.unita.filter(u=>!u.isSq&&!u.daSquadra&&u.membri.length===1&&u.exN&&u.exM);
 if(!unitaOk.length)return;
 const fissiDi=u=>{const f=new Set();manMotore.concat(auto).forEach(x=>{if(x.op===u.membri[0])f.add(x.giorno);});if(u.carryFlag)f.add(1);return f;};
@@ -1452,15 +1461,17 @@ if(add.some(g=>u.exN.has(g)))continue;
 const nuovo=costruisci(u,S2);if(!nuovo)continue;
 const dn=conta(u,nuovo),dc=conta(u,u.turni),dq=dReq(u);
 if(!((domDi(u)>=99||dn<=domDi(u)||dn<=dc)&&(dn>=dq||dn>=dc)))continue;
+if(domLib){const sn=a=>{let n=0;for(let g=1;g<=r.N;g++)if(a[g]==='Notte'&&dow(g)===6)n++;return n;};const n2=sn(nuovo);if(n2>1&&n2>sn(u.turni))continue;}
 if(!incompOk(u,add))continue;
 const vecchio=u.turni;u.turni=nuovo;
 rem.forEach(g=>{r.cov[k][g]-=1;});add.forEach(g=>{r.cov[k][g]+=1;});
 const q=pun();
-if(q.tot<=cur.tot+1e-9){cur=q;}
+if(q.tot<=cur.tot+1e-9||(q.h<=cur.h&&q.tot<=cur.tot+0.35&&Math.random()<0.03)){cur=q;if(cur.tot<best.t-1e-9)best=snap();}
 else{u.turni=vecchio;rem.forEach(g=>{r.cov[k][g]+=1;});add.forEach(g=>{r.cov[k][g]-=1;});}
 if(cur.h===0&&cur.so===0)break;
 }
 }
+if(best.t<cur.tot-1e-9){r.unita.forEach((u,i)=>{u.turni=best.tn[i];});for(let g=0;g<best.cv.length;g++)r.cov[k][g]=best.cv[g];}
 const q=punti(r);mh=q.h;ms=q.so;migl=q.h+q.so*0.3+q.ss*0.5;
 if(migl<tot0-1e-9)rafNote=` · migliorata con scambi di notti (penalità da ${Math.round(tot0*10)/10} a ${Math.round(migl*10)/10})`;
 };
@@ -1550,48 +1561,6 @@ return {nome:u.titolo,pq,so:[...so],gg:!(df===0&&n>=nt),dm:d<dReq,np:u.membri.le
 };
 const calcDg=()=>{const d=[];r.unita.forEach(u=>{if(u.daSquadra)return;let x=diagnosi(u);if(x)d.push(x);});return d;};
 let dg=calcDg(),notaAuto='';
-// SAN GIOVANNI: se una domenica supera il massimo a notte, 2 domeniche solo ad alcuni operai (a rotazione), gli altri 1
-if(sd.k==='S'&&domBase!==1&&domBase>0){
-const sopra=()=>{const l=[];for(let g=1;g<=r.N;g++)if(dFm([],g)&&r.cov[sd.k][g]>hiC(g))l.push(g);return l;};
-const sp=sopra();
-if(sp.length){
-const o={sq:sq,dom:domBase,r,migl,mh,ms,tu,uc,t0,dg};
-const elenco=sp.map(g=>`${dow(g)===0?'Dom':nomiGiorni[dow(g)].slice(0,3)+' (festivo)'} ${g} · ${r.cov[sd.k][g]}`).join(', ');
-const maxTxt=sp.map(g=>hiC(g)).filter((v,i,a)=>a.indexOf(v)===i).join('/');
-const domTxt=o.dom>=99?'libere':String(o.dom);
-// quanti operai possono fare 2 domeniche restando nei limiti
-const gDom=[];for(let g=1;g<=r.N;g++)if(dFm([],g))gDom.push(g);
-const posti=gDom.reduce((a,g)=>a+hiC(g),0);
-const nOp=r.unita.filter(u=>!u.daSquadra).reduce((a,u)=>a+u.membri.length,0);
-const singoli=r.unita.filter(u=>!u.isSq&&!u.daSquadra&&u.membri.length===1&&ntU(u)>=2);
-const E=Math.max(0,Math.min(singoli.length,Math.floor((posti-nOp)*0.8)));
-// rotazione: toccano a chi ha fatto meno mesi con 2 domeniche, partendo da chi non le fa da più tempo
-const storia=storico.domeniche||{},kCorr=anno+'-'+mese;
-const chiavi=Object.keys(storia).filter(x=>x!==kCorr).sort((a,b)=>{const pa=a.split('-'),pb=b.split('-');return (Number(pa[0])*12+Number(pa[1]))-(Number(pb[0])*12+Number(pb[1]));});
-const punteggio=nome=>{let c=0,ult=-1;chiavi.forEach((x,i)=>{if(((storia[x]||{})[nome]||0)>=2){c++;ult=i;}});return [c,ult];};
-const scegli2=n=>singoli.map(u=>{const p=punteggio(u.membri[0]);return {nome:u.membri[0],c:p[0],ult:p[1],q:Math.random()};}).sort((a,b)=>a.c-b.c||a.ult-b.ult||a.q-b.q).slice(0,n).map(x=>x.nome);
-const prove=[];[E,Math.floor(E*0.6),Math.floor(E*0.3)].forEach(e=>{if(e>0&&!prove.includes(e))prove.push(e);});
-prove.push(0);
-let fatto=null;const tFineD=Date.now()+30000;
-for(const e of prove){
-if(Date.now()>=tFineD)break;
-let nomi=[];domPer=null;
-if(e>0){nomi=scegli2(e);domPer={};nomi.forEach(n=>{domPer[n]=2;});}
-configura(o.sq,1);cerca(3000,1500);
-if(sopra().length===0&&(e===0||mh===0)){fatto={e,nomi};dg=calcDg();break;}
-}
-if(fatto&&fatto.e>0){
-notaAuto=`<div class="msg warn">🔧 <strong>${sd.nome} · domeniche riportate nei limiti.</strong> Con le domeniche di notte a testa impostate a ${domTxt}, alcune domeniche superavano il massimo di ${maxTxt} operai a notte (${elenco}). Per rientrare nei limiti <strong>2 domeniche le fanno solo ${fatto.e} operai</strong> (${fatto.nomi.join(', ')}), tutti gli altri ne fanno 1. Sono scelti a rotazione tra chi ne ha fatte 2 meno volte nei mesi scorsi: il mese prossimo, se serve, toccherà ad altri. Vale solo per questo mese: l'impostazione resta salvata come prima.</div>`;
-}else if(fatto){
-notaAuto=`<div class="msg warn">🔧 <strong>${sd.nome} · domeniche riportate nei limiti.</strong> Con le domeniche di notte a testa impostate a ${domTxt}, alcune domeniche superavano il massimo di ${maxTxt} operai a notte (${elenco}). Per rientrare nei limiti le domeniche a testa sono state <strong>portate a 1 per tutti</strong>: non c'era posto per dare 2 domeniche a qualcuno. Vale solo per questo mese: l'impostazione resta salvata come prima.</div>`;
-}else{
-domPer=null;configura(o.sq,o.dom);
-r=o.r;migl=o.migl;mh=o.mh;ms=o.ms;tu=o.tu;uc=o.uc;t0=o.t0;dg=o.dg;
-notaAuto=`<div class="msg warn">🔧 <strong>${sd.nome} · domeniche sopra il massimo.</strong> Alcune domeniche superano il massimo di ${maxTxt} operai a notte (${elenco}). Ho provato a dare 2 domeniche solo ad alcuni operai e poi 1 a tutti, ma non rientrano comunque nei limiti: ho mantenuto le impostazioni originali.</div>`;
-}
-tentTxt=mkTent();
-}
-}
 // STAFFETTA: se i target non sono raggiunti, prima si alza la domenica (1 -> 2), poi si elimina una squadra
 if(sd.k==='T'&&(dg.length>0||mh>0)){
 const o={sq:sq,dom:domBase,r,migl,mh,ms,tu,uc,t0,dg};
@@ -1649,14 +1618,20 @@ diagHtml+=`<details class="msg warn"><summary>⚠️ ${sd.nome}: ${parti.join(' 
 +`<p style="margin:10px 0 0;font-size:.82rem">La diagnosi è calcolata alla generazione: se modifichi i turni a mano non si aggiorna.</p></details>`;
 }
 
-let chips='',fuori=0;
+let chips='',fuori=0,nDue=0,domSopra=[];
 for(let g=1;g<=r.N;g++){
 let c=r.cov[sd.k][g],bad=c>hiC(g)||(c<hardMin&&!zeroOk(c));
 if(bad)fuori++;
+if(sd.k==='S'&&lim[0]>2&&c===2)nDue++;
+if(domLib&&dFm([],g)&&c>lim[1])domSopra.push(`${nomiGiorni[dow(g)].slice(0,3)} ${g} · ${c}`);
 chips+=`<span class="chip${bad?' bad':''}">${nomiGiorni[dow(g)].slice(0,3)} ${g} · ${c}</span>`;
 }
 let zeroTxt=' Per questa sede 0 operai non è un errore se l\'altra sede copre la notte.';
-const riepHtml=`<div class="msg ${fuori>0?'warn':'ok'}">Notti fuori dai limiti (${lim[0]}–${lim[1]} operai a notte): ${fuori} su ${r.N}.${zeroTxt} In ogni riquadro: giorno e operai in turno di notte.</div><div class="cop">${chips}</div>`;
+const limTxt=(sd.k==='S'&&lim[0]>2)?`Notti fuori dai limiti (minimo assoluto 2 operai, obiettivo ${lim[0]}; massimo ${lim[1]}${domLib?', superabile nelle domeniche':''})`:`Notti fuori dai limiti (${lim[0]}–${lim[1]} operai a notte)`;
+const dueTxt=nDue>0?` Notti con 2 operai (accettate, l'obiettivo è ${lim[0]}): ${nDue}.`:'';
+const satTxt=domLib?` Regola attiva: ${domBase} domeniche e un solo sabato di notte a testa.`:'';
+const domTxtR=domSopra.length?` Domeniche sopra il massimo di ${lim[1]}, previste perché tutti fanno ${domBase} domeniche di notte: ${domSopra.join(', ')}.`:'';
+const riepHtml=`<div class="msg ${fuori>0?'warn':'ok'}">${limTxt}: ${fuori} su ${r.N}.${dueTxt}${domTxtR}${satTxt}${zeroTxt} In ogni riquadro: giorno e operai in turno di notte.</div><div class="cop">${chips}</div>`;
 const phT=sd.k==='T'?document.getElementById('riepStaffetta'):null;
 if(phT){phT.innerHTML=`<h2 class="res-title">Staffetta · riepilogo</h2>`+notaAuto+riepHtml+diagHtml;area.insertAdjacentHTML('beforeend',`<h2 class="res-title">${sd.nome}</h2>`);}
 else{area.insertAdjacentHTML('beforeend',`<h2 class="res-title">${sd.nome}</h2>${notaAuto}${riepHtml}${diagHtml}`);if(sd.k==='S')area.insertAdjacentHTML('beforeend','<div id="riepStaffetta"></div>');}
