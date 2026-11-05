@@ -225,8 +225,13 @@ body{padding-bottom:110px}
 .tm-t thead th{height:26px;font-size:.78rem;background:#fff;color:#8b1a1a;border-top:1px solid #cfd5de}
 .tm-t thead tr+tr th{color:#111;font-weight:600}
 .tm-t th.dom{background:#f6d6d3!important}
+.tm-t th.sab{background:#e0443a!important;color:#fff!important}
+.tm-t .nmw{display:flex;align-items:center;justify-content:space-between;gap:3px;font-size:.84rem}
+.tm-t .nmt{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.tm-t .lv{flex:none;min-width:20px;padding:1px 5px;border-radius:999px;background:#e7ebf1;color:#303946;font-size:.74rem;font-weight:700;text-align:center;line-height:1.25}
+.cc.d6 b{color:#c0221a}
 .tm-t th.fes{background:#fbe9c9!important}
-.tm-t th.nm{position:sticky;left:0;z-index:3;min-width:108px;max-width:108px;text-align:left;padding:0 8px;background:#fff;color:#111;font-size:.92rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:1px solid #cfd5de;border-right:2px solid #98a2b3}
+.tm-t th.nm{position:sticky;left:0;z-index:3;min-width:156px;max-width:156px;text-align:left;padding:0 5px 0 7px;background:#fff;color:#111;font-size:.92rem;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:1px solid #cfd5de;border-right:2px solid #98a2b3}
 .tm-t tr.sep>*{border-top:3px solid #111}
 .tm-t td{cursor:pointer;background:#fff;color:#111;-webkit-tap-highlight-color:transparent}
 .tm-t td[data-c="N"]{background:#70ad47;color:#fff}
@@ -257,7 +262,7 @@ body{padding-bottom:110px}
 .tm-t{width:100%}
 .tm-t th,.tm-t td{height:40px;min-width:36px;font-size:1.25rem}
 .tm-t thead th{height:30px;font-size:.85rem}
-.tm-t th.nm{min-width:160px;max-width:160px;font-size:1rem}
+.tm-t th.nm{min-width:184px;max-width:184px;font-size:1rem}
 .tm-t th.tot,.tm-t td.tot{min-width:60px}
 .tm-t tr.foot>*{height:34px}
 .tm-t td:hover{box-shadow:inset 0 0 0 3px rgba(20,24,33,.55)}
@@ -302,7 +307,7 @@ body{padding-bottom:110px}
 </section>
 <div id="tmMsg"></div>
 <section class="box tm-card" style="padding:0;overflow:hidden"><div class="tm-scroll"><table class="tm-t" id="tmTab"></table></div></section>
-<p class="tm-hint">Nell'ultima riga vedi quante persone sono di notte ogni giorno (in rosso se nessuno). <span class="tm-pc">Da PC: con il menù aperto premi N, M, S, R, F, H (festa), X o Canc per scegliere il turno e passare al giorno dopo; le frecce ti spostano tra le caselle; Esc chiude.</span></p>
+<p class="tm-hint">Nell'ultima riga vedi quante persone sono di notte ogni giorno (in rosso se nessuno). Il numero accanto al nome è il totale dei giorni lavorati (notti, mattine e sabati mattina) e si aggiorna a ogni modifica. <span class="tm-pc">Da PC: con il menù aperto premi N, M, S, R, F, H (festa), X o Canc per scegliere il turno e passare al giorno dopo; le frecce ti spostano tra le caselle; Esc chiude.</span></p>
 <div class="actions">
 <button type="button" class="cta" onclick="tmGenera()">Genera i turni del mese</button>
 <button type="button" class="btn-pdf" onclick="scaricaPDFManuale()">Scarica il PDF dei turni manuali</button>
@@ -1856,12 +1861,12 @@ if(txt!==''){x.fillStyle=col;x.textAlign=align||'center';
 let f=testoAdattato(x,txt,w-12,px,bold);x.font=(bold?'bold ':'')+f+'px Arial,Helvetica,sans-serif';
 x.fillText(txt,align==='left'?cx+8:cx+w/2,cy+h/2+1);}
 };
-cella(X0,Y0,nameW,rowH,'#fff','','#000',20,true);
-cella(X0,Y0+rowH,nameW,rowH,'#fff','','#000',20,true);
+cella(X0,Y0,nameW,rowH,'#fff',nome.toUpperCase(),'#000',Math.round(rowH*0.52),true,'left');
+cella(X0,Y0+rowH,nameW,rowH,'#fff',String(anno),'#000',Math.round(rowH*0.52),true,'left');
 for(let g=1;g<=N;g++){
 let cx=X0+nameW+(g-1)*dayW,dw=new Date(Number(anno),mm,g).getDay();
-cella(cx,Y0,dayW,rowH,'#fff',g+'/'+(mm+1),'#8b1a1a',Math.round(rowH*0.36),true);
-cella(cx,Y0+rowH,dayW,rowH,dw===0?'#f6d6d3':'#fff',abb[dw],'#111',Math.round(rowH*0.36),false);
+cella(cx,Y0,dayW,rowH,dw===6?'#e0443a':'#fff',g+'/'+(mm+1),dw===6?'#fff':'#8b1a1a',Math.round(rowH*0.36),true);
+cella(cx,Y0+rowH,dayW,rowH,dw===6?'#e0443a':(dw===0?'#f6d6d3':'#fff'),abb[dw],dw===6?'#fff':'#111',Math.round(rowH*0.36),false);
 }
 let prev=null;
 righe.forEach((r,i)=>{
@@ -2112,14 +2117,14 @@ const a=tmSel.a,m=tmSel.m,N=getGiorniNelMese(a,m);
 tmOps=tmOperai();
 const fest=new Set(festiviDelMese(a,m).map(x=>x.g)),ab=["DOM","LUN","MAR","MER","GIO","VEN","SAB"];
 let h='<thead><tr><th class="nm"></th>';
-for(let g=1;g<=N;g++)h+=`<th>${g}/${m+1}</th>`;
+for(let g=1;g<=N;g++)h+=`<th class="${new Date(a,m,g).getDay()===6?'sab':''}">${g}/${m+1}</th>`;
 h+='<th class="tot">Notti</th></tr><tr><th class="nm"></th>';
-for(let g=1;g<=N;g++){const d=new Date(a,m,g).getDay();h+=`<th class="${d===0?'dom':fest.has(g)?'fes':''}">${ab[d]}</th>`;}
+for(let g=1;g<=N;g++){const d=new Date(a,m,g).getDay();h+=`<th class="${d===6?'sab':d===0?'dom':fest.has(g)?'fes':''}">${ab[d]}</th>`;}
 h+='<th class="tot"></th></tr></thead><tbody>';
 let prev=null;
 tmOps.forEach((o,i)=>{
 const sede=staffetta.has(o)?1:0,r=tmRiga(o,N);
-h+=`<tr${prev!==null&&prev!==sede?' class="sep"':''}><th class="nm" title="${tmEsc(o)}">${tmEsc(o)}</th>`;
+h+=`<tr${prev!==null&&prev!==sede?' class="sep"':''}><th class="nm" title="${tmEsc(o)}"><div class="nmw"><span class="nmt">${tmEsc(o)}</span><b class="lv" id="tmL${i}" title="Giorni lavorati"></b></div></th>`;
 for(let g=1;g<=N;g++){const c=r[g-1],n=TM_NOME[c];h+=`<td data-i="${i}" data-g="${g}" data-c="${c}">${n?(COD[n]||''):''}</td>`;}
 h+=`<td class="tot" id="tmT${i}"></td></tr>`;
 prev=sede;
@@ -2132,7 +2137,7 @@ tmTot();
 }
 function tmTot(){
 const N=getGiorniNelMese(tmSel.a,tmSel.m),col=Array(N).fill(0);
-tmOps.forEach((o,i)=>{const r=tmRiga(o,N);let n=0;for(let g=0;g<N;g++)if(r[g]==='N'){n++;col[g]++;}const c=document.getElementById('tmT'+i);if(c)c.textContent=n||'';});
+tmOps.forEach((o,i)=>{const r=tmRiga(o,N);let n=0;let lav=0;for(let g=0;g<N;g++){if(r[g]==='N'){n++;col[g]++;}if(r[g]==='N'||r[g]==='M'||r[g]==='S')lav++;}const c=document.getElementById('tmT'+i);if(c)c.textContent=n||'';const lv=document.getElementById('tmL'+i);if(lv)lv.textContent=lav;});
 col.forEach((n,g)=>{const c=document.getElementById('tmF'+(g+1));if(c){c.textContent=n;c.classList.toggle('lo',n<1);}});
 }
 function tmPaint(td,c){
@@ -2288,12 +2293,12 @@ if(txt!==''){x.fillStyle=col;x.textAlign=align||'center';
 const f=testoAdattato(x,txt,w-12,px,bold);x.font=(bold?'bold ':'')+f+'px Arial,Helvetica,sans-serif';
 x.fillText(txt,align==='left'?cx+8:cx+w/2,cy+h/2+1);}
 };
-cella(X0,Y0,nameW,rowH,'#fff','','#000',20,true);
-cella(X0,Y0+rowH,nameW,rowH,'#fff','','#000',20,true);
+cella(X0,Y0,nameW,rowH,'#fff',nome.toUpperCase(),'#000',Math.round(rowH*0.52),true,'left');
+cella(X0,Y0+rowH,nameW,rowH,'#fff',String(anno),'#000',Math.round(rowH*0.52),true,'left');
 for(let g=1;g<=N;g++){
 const cx=X0+nameW+(g-1)*dayW,dw=new Date(Number(anno),mm,g).getDay();
-cella(cx,Y0,dayW,rowH,'#fff',g+'/'+(mm+1),'#8b1a1a',Math.round(rowH*0.36),true);
-cella(cx,Y0+rowH,dayW,rowH,dw===0?'#f6d6d3':'#fff',abb[dw],'#111',Math.round(rowH*0.36),false);
+cella(cx,Y0,dayW,rowH,dw===6?'#e0443a':'#fff',g+'/'+(mm+1),dw===6?'#fff':'#8b1a1a',Math.round(rowH*0.36),true);
+cella(cx,Y0+rowH,dayW,rowH,dw===6?'#e0443a':(dw===0?'#f6d6d3':'#fff'),abb[dw],dw===6?'#fff':'#111',Math.round(rowH*0.36),false);
 }
 let prev=null;
 righe.forEach((r,i)=>{
