@@ -294,7 +294,9 @@ body{padding-bottom:110px}
 <button id="btnEsportaPDF" onclick="scaricaPDFTabella()" class="btn-pdf" style="display:none">Scarica il PDF (tabella unica del mese)</button>
 <button id="btnEsportaPDF2" onclick="scaricaPDF()" class="btn-pdf" style="display:none;background:#475467">Scarica il PDF (una pagina per operaio)</button>
 <button id="btnCondividi" onclick="condividiPDF()" class="btn-pdf" style="display:none;background:#1f9d55">Condividi i due PDF (WhatsApp…)</button>
+<button type="button" id="rmBtnTurni" onclick="resettaMeseSpecifico('turni')" style="background:#d92d20">Resetta un mese specifico</button>
 </div>
+<div id="rmMsgTurni"></div>
 
 <div id="area-pdf"></div>
 
@@ -312,7 +314,7 @@ body{padding-bottom:110px}
 <button type="button" class="cta" onclick="tmGenera()">Genera i turni del mese</button>
 <button type="button" class="btn-pdf" onclick="scaricaPDFManuale()">Scarica il PDF dei turni manuali</button>
 <button type="button" class="btn-pdf" id="tmBtnShare" onclick="condividiManuale()" style="background:#1f9d55">Condividi il PDF (WhatsApp…)</button>
-<div class="row" style="margin:0"><button type="button" id="tmUndo" onclick="tmAnnulla()" style="display:none;background:#475467;flex:1">↩ Annulla ultima azione</button><button type="button" id="tmAzzera" onclick="tmAzzera()" style="background:#d92d20;flex:1;padding:14px 18px">Azzera la tabella</button></div>
+<div class="row" style="margin:0"><button type="button" id="tmAzzera" onclick="resettaMeseSpecifico('manuale')" style="background:#d92d20;flex:1;padding:14px 18px">Resetta un mese specifico</button></div>
 </div>
 </div>
 <div class="tab" id="tab-operai">
@@ -444,10 +446,10 @@ body{padding-bottom:110px}
 <div class="tab" id="tab-dati">
 <details class="box" style="--ac:#c62222;margin-top:24px" ontoggle="aggiornaListaReset()">
 <summary>Resetta un mese specifico</summary>
-<p style="margin-top:0">Se hai generato un mese per sbaglio, sceglilo qui e resettalo: i suoi turni e i suoi festivi a rotazione vengono tolti dallo storico, così i mesi successivi non ne tengono più conto. Gli altri mesi non vengono toccati.</p>
+<p style="margin-top:0">Se hai generato un mese per sbaglio, sceglilo qui e resettalo: i suoi turni (generati e manuali) e i suoi festivi a rotazione vengono tolti dallo storico, così i mesi successivi non ne tengono più conto. Gli altri mesi non vengono toccati.</p>
 <label for="meseDaResettare">Mesi generati</label>
 <select id="meseDaResettare" onchange="ripristinaBtnReset()"></select>
-<button id="btnReset" onclick="resetMese()" style="background:#d92d20">Resetta questo mese</button>
+<button id="btnReset" onclick="resettaMeseSpecifico('dati')" style="background:#d92d20">Resetta questo mese</button>
 <p id="esitoReset" class="msg ok" style="display:none;margin:12px 0 0"></p>
 </details>
 
@@ -1944,38 +1946,14 @@ return pdfDaCanvas(pagine,`Turni_Strada_${nome}_${anno}.pdf`,'portrait',blob);
 function aggiornaListaReset(){
 let ks=new Set(Object.keys(storico).filter(k=>k!=='festivi'&&k!=='domeniche'));
 Object.keys(storico.festivi||{}).forEach(k=>ks.add(k));
+Object.keys(tmData||{}).forEach(k=>ks.add(k));
 let arr=[...ks].filter(k=>/^\d+-\d+$/.test(k)).sort((a,b)=>{let x=a.split('-'),y=b.split('-');return (x[0]*12+ +x[1])-(y[0]*12+ +y[1]);});
 document.getElementById('meseDaResettare').innerHTML=arr.length
 ?arr.map(k=>{let t=k.split('-');return `<option value="${k}">${nomiMesi[t[1]]} ${t[0]}</option>`;}).join('')
 :'<option value="">Nessun mese generato</option>';
 }
-let _confReset=null,_tConf=null;
-function ripristinaBtnReset(){_confReset=null;clearTimeout(_tConf);document.getElementById('btnReset').textContent='Resetta questo mese';}
 function esitoReset(tipo,testo){let e=document.getElementById('esitoReset');e.className='msg '+tipo;e.textContent=testo;e.style.display='block';}
-function resetMese(){
-let k=document.getElementById('meseDaResettare').value;
-if(!k)return esitoReset('warn',"Non c'è nessun mese da resettare.");
-let t=k.split('-'),nm=nomiMesi[Number(t[1])]+' '+t[0];
-if(_confReset!==k){
-_confReset=k;clearTimeout(_tConf);
-document.getElementById('btnReset').textContent='Tocca di nuovo per confermare: '+nm;
-esitoReset('warn','Tocca di nuovo il tasto rosso entro 6 secondi per resettare '+nm+'.');
-_tConf=setTimeout(ripristinaBtnReset,6000);
-return;
-}
-ripristinaBtnReset();
-delete storico[k];
-if(storico.festivi)delete storico.festivi[k];
-if(storico.domeniche)delete storico.domeniche[k];
-try{localStorage.setItem(CHIAVE_STORICO,JSON.stringify(storico));}catch(e){}
-let area=document.getElementById('area-pdf');
-if(area.dataset.key===k){
-area.innerHTML='';delete area.dataset.key;_pronti=null;
-document.getElementById('btnEsportaPDF').style.display='none';
-}
-aggiornaListaReset();programmaSalvataggio();
-esitoReset('ok',nm+' resettato: i mesi successivi non ne terranno più conto.');
-}
+function ripristinaBtnReset(){rmRipristina();}
 
 let _pronti=null;
 async function condividiPDF(){
@@ -2079,7 +2057,7 @@ ov.classList.add('on');
 const TM_COD={"Notte":"N","Mattina":"M","Sabato Mattina":"S","Riposo":"R","Ferie":"F","Festa":"H","Escluso":"X"};
 const TM_NOME={};Object.keys(TM_COD).forEach(k=>{TM_NOME[TM_COD[k]]=k;});
 const TM_PAL=[["Notte","Notte","#fff","N"],["Mattina","Mattina","#111","M"],["Sabato Mattina","Sab. mattina","#111","S"],["Riposo","Riposo","#fff","R"],["Ferie","Ferie","#fff","F"],["Festa","Festa / non lavora","#fff","H"],["Escluso","Escluso","#303946","X"],["","Cancella","","⌫"]];
-let tmData={},tmSel=null,_tmCell=null,_tmT0=0,tmOps=[],_tmUndo=null,_tmPronto=null,_tmConf=null,_tmT=null;
+let tmData={},tmSel=null,_tmCell=null,_tmT0=0,tmOps=[],_tmPronto=null,_tmConf=null,_tmT=null;
 
 const tmEsc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function tmKey(){return tmSel.a+'-'+tmSel.m;}
@@ -2150,10 +2128,10 @@ const i=+td.dataset.i,g=+td.dataset.g,o=tmOps[i];if(!o)return;
 if(td.dataset.c===c)return;
 tmSet(o,g,c);
 td.dataset.c=c;const n=TM_NOME[c];td.textContent=n?(COD[n]||''):'';
-tmTot();tmDopo();_tmUndo=null;document.getElementById('tmUndo').style.display='none';
+tmTot();tmDopo();
 }
 
-function tmFissaMese(m,a){tmSel={m:m,a:a};_tmUndo=null;_tmPronto=null;document.getElementById('tmUndo').style.display='none';document.getElementById('tmBtnShare').textContent='Condividi il PDF (WhatsApp…)';tmRipristinaAzzera();tmMsg('');
+function tmFissaMese(m,a){tmSel={m:m,a:a};_tmPronto=null;document.getElementById('tmBtnShare').textContent='Condividi il PDF (WhatsApp…)';tmRipristinaAzzera();tmMsg('');
 document.getElementById('tmMese').value=m;document.getElementById('tmAnno').value=a;tmRender();programmaSalvataggio();}
 function tmCambia(){tmFissaMese(Number(document.getElementById('tmMese').value),Number(document.getElementById('tmAnno').value));}
 function tmMesePiu(d){let m=tmSel.m+d,a=tmSel.a;if(m<0){m=11;a--;}if(m>11){m=0;a++;}if(a<2024||a>2060)return;tmFissaMese(m,a);}
@@ -2187,39 +2165,57 @@ tmRender();
 }
 
 /* --- azzera / annulla --- */
-function tmRipristinaAzzera(){_tmConf=null;clearTimeout(_tmT);const b=document.getElementById('tmAzzera');if(b)b.textContent='Azzera la tabella';}
-function tmSalvaUndo(){const k=tmKey();_tmUndo={k:k,v:tmData[k]?JSON.parse(JSON.stringify(tmData[k])):null};document.getElementById('tmUndo').style.display='block';}
+function tmRipristinaAzzera(){rmRipristina();}
 function tmStoricoMese(k){return !!(storico[k]||(storico.domeniche&&storico.domeniche[k])||(storico.festivi&&storico.festivi[k]));}
 function tmSalvaStorico(){try{localStorage.setItem(CHIAVE_STORICO,JSON.stringify(storico));}catch(e){}}
-function tmAzzera(){
-const k=tmKey(),haTab=Object.keys(tmData[k]||{}).length>0,haSto=tmStoricoMese(k);
-if(!haTab&&!haSto){tmMsg('La tabella di questo mese è già vuota e nello storico non c\'è nulla da togliere.','warn');return;}
-if(_tmConf!==k){_tmConf=k;document.getElementById('tmAzzera').textContent='Sicuro? Tocca di nuovo: azzero tabella e storico del mese';clearTimeout(_tmT);_tmT=setTimeout(tmRipristinaAzzera,5000);return;}
-tmSalvaUndo();
-_tmUndo.st={rec:storico[k]!==undefined?JSON.parse(JSON.stringify(storico[k])):undefined,dom:storico.domeniche&&storico.domeniche[k]!==undefined?JSON.parse(JSON.stringify(storico.domeniche[k])):undefined,fest:storico.festivi&&storico.festivi[k]!==undefined?JSON.parse(JSON.stringify(storico.festivi[k])):undefined};
-delete tmData[k];
-delete storico[k];
+/* --- RESETTA UN MESE SPECIFICO: un unico comando, identico in Turni, Manuali e Dati ---
+   Toglie il mese scelto da: tabella manuale, storico (turni, domeniche, festivi a rotazione) e tabella generata a video.
+   Gli altri mesi non vengono toccati. Serve un secondo tocco per confermare. */
+let _rmConf=null,_rmT=null;
+const RM_BTN={turni:'rmBtnTurni',manuale:'tmAzzera',dati:'btnReset'};
+const RM_TXT={turni:'Resetta un mese specifico',manuale:'Resetta un mese specifico',dati:'Resetta questo mese'};
+function rmRipristina(){_rmConf=null;clearTimeout(_rmT);Object.keys(RM_BTN).forEach(x=>{const b=document.getElementById(RM_BTN[x]);if(b)b.textContent=RM_TXT[x];});}
+function rmMsg(sez,t,tipo){
+if(sez==='manuale'){tmMsg(t,tipo);return;}
+if(sez==='dati'){esitoReset(tipo,t);return;}
+const e=document.getElementById('rmMsgTurni');if(e)e.innerHTML=t?`<p class="msg ${tipo||'ok'}">${t}</p>`:'';
+}
+function rmChiave(sez){
+if(sez==='turni')return document.getElementById('annoSelezionato').value+'-'+Number(document.getElementById('meseSelezionato').value);
+if(sez==='manuale')return tmKey();
+return document.getElementById('meseDaResettare').value;
+}
+function rmHaDati(k){
+const ar=document.getElementById('area-pdf');
+return Object.keys(tmData[k]||{}).length>0||tmStoricoMese(k)||ar.dataset.key===k;
+}
+function rmEsegui(k){
+delete tmData[k];delete storico[k];
 if(storico.domeniche)delete storico.domeniche[k];
 if(storico.festivi)delete storico.festivi[k];
 tmSalvaStorico();
-tmRipristinaAzzera();tmRender();tmDopo();
-if(typeof aggiornaListaReset==='function')aggiornaListaReset();
-tmMsg('Tabella azzerata e mese tolto dallo storico: i mesi successivi non ne terranno più conto. Se è stato un errore, tocca «Annulla ultima azione».','warn');
+const ar=document.getElementById('area-pdf');
+if(ar.dataset.key===k){ar.innerHTML='';delete ar.dataset.key;_pronti=null;document.getElementById('btnEsportaPDF').style.display='none';}
+if(tmSel&&tmKey()===k)tmRender();
+tmDopo();
+aggiornaListaReset();programmaSalvataggio();
 }
-function tmAnnulla(){
-if(!_tmUndo||_tmUndo.k!==tmKey())return;
-const k=_tmUndo.k;
-if(_tmUndo.v)tmData[k]=_tmUndo.v;else delete tmData[k];
-if(_tmUndo.st){
-const t=_tmUndo.st;
-if(t.rec!==undefined)storico[k]=t.rec;
-if(t.dom!==undefined){storico.domeniche=storico.domeniche||{};storico.domeniche[k]=t.dom;}
-if(t.fest!==undefined){storico.festivi=storico.festivi||{};storico.festivi[k]=t.fest;}
-tmSalvaStorico();
-if(typeof aggiornaListaReset==='function')aggiornaListaReset();
+function resettaMeseSpecifico(sez){
+const k=rmChiave(sez);
+if(!k||!/^\d+-\d+$/.test(k)){rmMsg(sez,"Non c'è nessun mese da resettare.",'warn');return;}
+const t=k.split('-'),nm=nomiMesi[Number(t[1])]+' '+t[0];
+if(!rmHaDati(k)){rmMsg(sez,nm+": non c'è niente da resettare, tabella e storico sono già vuoti.",'warn');return;}
+const kc=sez+'|'+k;
+if(_rmConf!==kc){
+rmRipristina();_rmConf=kc;
+const b=document.getElementById(RM_BTN[sez]);if(b)b.textContent='Sicuro? Tocca di nuovo: resetto '+nm;
+rmMsg(sez,'Tocca di nuovo il tasto rosso entro 6 secondi per resettare '+nm+'.','warn');
+_rmT=setTimeout(()=>{rmRipristina();rmMsg(sez,'');},6000);
+return;
 }
-_tmUndo=null;document.getElementById('tmUndo').style.display='none';
-tmRender();tmDopo();tmMsg('Azione annullata.','ok');
+rmRipristina();
+rmEsegui(k);
+rmMsg(sez,nm+' resettato: tabella e storico del mese tolti, i mesi successivi non ne terranno più conto.',sez==='dati'?'ok':'warn');
 }
 
 /* --- storico: mese precedente, domeniche e festivi a rotazione --- */
@@ -2260,7 +2256,6 @@ let out;
 try{out=generaTurniMese({man:true,anno:a,mese:m});}
 catch(e){_modoMan=false;console.error(e);tmMsg('Errore nella generazione: '+tmEsc(e&&e.message||e),'err');return;}
 if(!out||out.vuoto){tmMsg('Non sono riuscito a generare la bozza: controlla gli operai e le squadre.','err');return;}
-tmSalvaUndo();
 const nd={};
 dip.forEach(o=>{const t=out.res[o];if(t&&t.length)nd[o]=t.slice(0,N).map(x=>TM_COD[x]||'.').join('').padEnd(N,'.');});
 if(Object.keys(nd).length)tmData[k]=nd;else delete tmData[k];
