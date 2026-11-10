@@ -228,6 +228,8 @@ body{padding-bottom:110px}
 .tm-t th.sab{background:#e0443a!important;color:#fff!important}
 .tm-t .nmw{display:flex;align-items:center;justify-content:space-between;gap:3px;font-size:.84rem}
 .tm-t .nmt{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.tm-t .lvw{display:flex;align-items:center;gap:3px;flex:none}
+.tm-t .lv.ro{background:#fde4e1;color:#c0221a}
 .tm-t .lv{flex:none;min-width:20px;padding:1px 5px;border-radius:999px;background:#e7ebf1;color:#303946;font-size:.74rem;font-weight:700;text-align:center;line-height:1.25}
 .cc.d6 b{color:#c0221a}
 .tm-t th.fes{background:#fbe9c9!important}
@@ -1301,16 +1303,16 @@ let fest=new Set(festiviDelMese(a,m).map(f=>f.g));
 let st=card.querySelector('h3 .stats');if(!st)return;
 let nt=card.dataset.nt;
 if(!nt){let mt=st.textContent.match(/Notti: \d+\/(\d+)/);nt=mt?mt[1]:'';card.dataset.nt=nt;}
-let n=0,d=0,l=0,fe=0,es=0,tg=0;
+let n=0,d=0,l=0,fe=0,es=0,tg=0,ro=0;
 [...card.querySelectorAll('.turno-row select')].forEach((s,i)=>{
 let g=i+1,dw=new Date(a,m,g).getDay(),fer=dw>=1&&dw<=5&&!fest.has(g),v=s.value;
 if(fer)tg++;
 if(v==='Notte'){n++;if(dw===0)d++;}
-if(v==='Notte'||v==='Mattina'||v==='Sabato Mattina')l++;
+if(v==='Notte'||v==='Mattina'||v==='Sabato Mattina'){l++;if(!fer)ro++;}
 if(v==='Ferie'){fe++;if(fer)l++;}
 if(v==='Escluso'&&fer)es++;
 });
-st.textContent=`Notti: ${n}/${nt} | Dom. notte: ${d} | Giorni lav.: ${l}/${tg-es}`+(fe?' | Ferie: '+fe:'')+(es?' | Esclusi: '+es:'');
+st.textContent=`Notti: ${n}/${nt} | Dom. notte: ${d} | Giorni lav.: ${l}/${tg-es} | Rossi: ${ro}`+(fe?' | Ferie: '+fe:'')+(es?' | Esclusi: '+es:'');
 }
 
 function generaTurniMese(opt){
@@ -1792,16 +1794,16 @@ if(phT){phT.innerHTML=`<h2 class="res-title">Staffetta · riepilogo</h2>`+notaAu
 else{area.insertAdjacentHTML('beforeend',`<h2 class="res-title">${sd.nome}</h2>${notaAuto}${riepHtml}${diagHtml}`);if(sd.k==='S')area.insertAdjacentHTML('beforeend','<div id="riepStaffetta"></div>');}
 
 r.unita.forEach(u=>{
-let n=0,d=0,l=0,as=0;
+let n=0,d=0,l=0,as=0,ro=0;
 for(let g=1;g<=r.N;g++){let t=u.turni[g];
 if(t==="Notte"){n++;if(dFm(u.membri,g))d++;}
-if(t==="Notte"||t==="Mattina"||t==="Sabato Mattina")l++;
+if(t==="Notte"||t==="Mattina"||t==="Sabato Mattina"){l++;if(!lavg(g))ro++;}
 if(t==="Escluso"&&lavg(g))as++;}
 let isSq=!!u.isSq,fsU=u.membri.length===1?feS(u.membri[0]):new Set(),
 tm=u.turni.map((t,g)=>t==='Escluso'&&fsU.has(g)?'Ferie':t),
 fe=tm.filter(t=>t==='Ferie').length,feW=tm.filter((t,g)=>t==='Ferie'&&lavg(g)).length;
 let card=document.createElement('div');card.className='box'+(isSq?' sq':'');card.dataset.membri=JSON.stringify(u.membri);card.dataset.sede=sd.nome;
-let html=`<h3>${isSq?'👥 Squadra: ':'👤 Operaio: '}${u.titolo} <span class="stats">Notti: ${n}/${ntU(u)} | Dom. notte: ${d} | Giorni lav.: ${l}/${r.target-as}${fe?' | Ferie: '+fe:''}${as-feW>0?' | Esclusi: '+(as-feW):''}</span></h3>`;
+let html=`<h3>${isSq?'👥 Squadra: ':'👤 Operaio: '}${u.titolo} <span class="stats">Notti: ${n}/${ntU(u)} | Dom. notte: ${d} | Giorni lav.: ${l}/${r.target-as} | Rossi: ${ro}${fe?' | Ferie: '+fe:''}${as-feW>0?' | Esclusi: '+(as-feW):''}</span></h3>`;
 if(isSq)html+=`<p class="membri">Membri: ${u.membri.join(', ')}</p>`;
 else if(u.daSquadra)html+=`<p class="membri">Della squadra ${u.daSquadra}: ${u.parz?'notte assegnata a mano, per il resto segue i turni della squadra':'esclusa in alcuni giorni, il resto della squadra lavora'}</p>`;
 html+=calendarioTurni(tm,r.N,festSet,anno,mese)+'<details class="elenco"><summary>Elenco dettagliato</summary>';
@@ -2115,7 +2117,7 @@ h+='<th class="tot"></th></tr></thead><tbody>';
 let prev=null;
 tmOps.forEach((o,i)=>{
 const sede=staffetta.has(o)?1:0,r=tmRiga(o,N);
-h+=`<tr${prev!==null&&prev!==sede?' class="sep"':''}><th class="nm" title="${tmEsc(o)}"><div class="nmw"><span class="nmt">${tmEsc(o)}</span><b class="lv" id="tmL${i}" title="Giorni lavorati"></b></div></th>`;
+h+=`<tr${prev!==null&&prev!==sede?' class="sep"':''}><th class="nm" title="${tmEsc(o)}"><div class="nmw"><span class="nmt">${tmEsc(o)}</span><span class="lvw"><b class="lv" id="tmL${i}" title="Giorni lavorati"></b><b class="lv ro" id="tmR${i}" title="Giorni rossi lavorati (sabato, domenica, festivi)"></b></span></div></th>`;
 for(let g=1;g<=N;g++){const c=r[g-1],n=TM_NOME[c];h+=`<td data-i="${i}" data-g="${g}" data-c="${c}">${n?(COD[n]||''):''}</td>`;}
 h+=`<td class="tot" id="tmT${i}"></td></tr>`;
 prev=sede;
@@ -2127,8 +2129,8 @@ document.getElementById('tmTab').innerHTML=h;
 tmTot();
 }
 function tmTot(){
-const N=getGiorniNelMese(tmSel.a,tmSel.m),col=Array(N).fill(0);
-tmOps.forEach((o,i)=>{const r=tmRiga(o,N);let n=0;let lav=0;for(let g=0;g<N;g++){if(r[g]==='N'){n++;col[g]++;}if(r[g]==='N'||r[g]==='M'||r[g]==='S')lav++;}const c=document.getElementById('tmT'+i);if(c)c.textContent=n||'';const lv=document.getElementById('tmL'+i);if(lv)lv.textContent=lav;});
+const N=getGiorniNelMese(tmSel.a,tmSel.m),col=Array(N).fill(0),fs=new Set(festiviDelMese(tmSel.a,tmSel.m).map(x=>x.g));
+tmOps.forEach((o,i)=>{const r=tmRiga(o,N);let n=0;let lav=0,ro=0;for(let g=0;g<N;g++){if(r[g]==='N'){n++;col[g]++;}if(r[g]==='N'||r[g]==='M'||r[g]==='S'){lav++;const dw=new Date(tmSel.a,tmSel.m,g+1).getDay();if(dw===0||dw===6||fs.has(g+1))ro++;}}const c=document.getElementById('tmT'+i);if(c)c.textContent=n||'';const lv=document.getElementById('tmL'+i);if(lv)lv.textContent=lav;const rv=document.getElementById('tmR'+i);if(rv)rv.textContent=ro;});
 col.forEach((n,g)=>{const c=document.getElementById('tmF'+(g+1));if(c){c.textContent=n;c.classList.toggle('lo',n<1);}});
 }
 function tmPaint(td,c){
