@@ -932,7 +932,7 @@ function risolviSede(sd,minC,zeroOk,nt,satT,domT,forza){
  });
  const cls=g=>{const d=dow(g);return satT>0&&d===6?1:(domT>0&&d===0?2:0);};
  const cov=new Array(N+2).fill(0);
- const covCost=(c,g)=>minC<=0?0:(c===0&&zeroOk&&!(forza&&forza[g])?0:(c>=minC?0:(minC-c)*1000));
+ const covCost=(c,g)=>minC<=0?0:(c===0&&zeroOk&&!(forza&&forza[g])?0:(c>=minC?0:(zeroOk&&c===1?6000:(minC-c)*1000)));
  let nSab=0;for(let g=1;g<=N;g++)if(dow(g)===6)nSab++;
  const capSat=(satT>0&&nSab>0)?Math.ceil(P.length*satT/nSab):0;
  const valido=(p,d)=>d>=1&&d<=N&&!(capSat&&dow(d)===6&&cov[d]>=capSat)&&!p.ab[d]&&!p.nn[d]&&!p.mM.has(d)&&!p.mask[d]&&!p.mask[d-1]&&!p.mask[d+1]&&!(d===1&&p.c1)&&d!==p.sm&&d!==p.sm-1;
