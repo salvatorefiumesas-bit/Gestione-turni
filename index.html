@@ -388,7 +388,7 @@ body{padding-bottom:110px}
 <button onclick="aggiungiFestivoManuale()">Assegna turno</button>
 </section>
 
-<section class="box" style="--ac:#a21caf">
+<section class="box" style="--ac:#a21caf;display:none">
 <h3>Eccezioni festivi</h3>
 <p class="vuoto">Di solito un festivo conta come una domenica di notte. Per gli operai scelti qui, nel mese indicato, i festivi NON contano come domenica: restano una notte normale (rientrano nelle notti a testa), ma si aggiungono alle domeniche invece di consumarle. Vale anche per i festivi assegnati in automatico. Un festivo che cade di domenica resta una domenica.</p>
 <div id="listaEccezioni"><p class="vuoto">Nessuna eccezione inserita.</p></div>
@@ -905,8 +905,8 @@ const dow=g=>new Date(o.anno,o.mese,g).getDay();
 const sqD=!!o.sqDom;
 const fest=new Set(festiviDelMese(o.anno,o.mese).map(f=>f.g));
 const fer=g=>{let d=dow(g);return d>=1&&d<=5&&!fest.has(g);};
-// un festivo conta come una domenica (se cade di domenica conta una volta sola)
-const dF=(g,u)=>dow(g)===0||(fest.has(g)&&!(u&&u.exF));
+// solo le domeniche contano come domeniche: i festivi sono notti normali
+const dF=(g,u)=>dow(g)===0;
 const exsF=new Set(o.eccFest||[]);
 let target=0;for(let g=1;g<=N;g++)if(fer(g))target++;
 const B=NT+1;
@@ -1330,7 +1330,7 @@ let dow=g=>new Date(anno,mese,g).getDay();
 const festSet=new Set(festiviDelMese(anno,mese).map(f=>f.g));
 const lavg=g=>dow(g)>=1&&dow(g)<=5&&!festSet.has(g);
 const exsM=new Set(eccezioniData.filter(e=>e.mese===mese&&e.anno===anno).map(e=>e.op));
-const dFm=(membri,g)=>dow(g)===0||(festSet.has(g)&&!membri.some(mb=>exsM.has(mb)));
+const dFm=(membri,g)=>dow(g)===0;
 area.dataset.key=anno+'-'+mese;
 area.innerHTML+=rec
 ?`<p class="msg ok">✔ Tenuto conto di ${nomiMesi[pm]} ${pa}: ${carry.length} operai con notte l'ultimo giorno hanno lo smonto il giorno 1.</p>`
